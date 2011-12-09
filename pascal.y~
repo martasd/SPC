@@ -664,7 +664,7 @@ function_procedure_type (Type *return_type, int num_params)
     malloc (sizeof (struct FunctionProcedureType));
             
 
-  func_proc_struct->num_params = num_params;
+  func_proc_struct->params = num_params;
       
   /* Determine size of formal parameters. */
   int params_memsize = sizeof (struct Param) * num_params; 
@@ -2031,7 +2031,7 @@ procedure_heading
         for (i = 0; i < num_params; i++)
         {
           /* Get the current param attributes. */
-          param = type_struct->info.function_procedure->params[i];
+          param = func_proc_struct->params[i];
           AttributeSet *param_attributes = new_attribute_set (1);
           set_p_attribute (param_attributes, "type", param.type);
           symtab_put (stab, param.name, param_attributes);

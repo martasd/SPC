@@ -1,0 +1,28 @@
+int i;
+      
+/* Determine how many vars to process. */
+int num_vars = get_num_var ($1);                                                    
+
+int type = type ($3);
+
+/* Put each var with its corresponding type in the symbol table. */
+for (i = 0; i < num_vars; i++)  
+{                                                                        
+  /* Get the name of the var. */
+  Node *id = get_child ($1, i);
+  char *var_name = get_s_attribute (id->attributes, "name");
+  
+  AttributeSet *sym_attributes = new_attribute_set (1);
+  set_p_attribute (attributes, "type", type);
+
+
+
+  /* If symbol is not in scope, then throw an error. */
+  if (symtab_is_in_scope (stab, var_name))
+    fprintf (stderror, "%s is already declared!", var_name);
+
+  symtab_put (stab, var_name, sym_attributes);
+}
+      
+AttributeSet *node_attributes = new_attribute_set (0);
+$$ = new_interior_node (_variable_declaration, attributes, 2, $1, $3);

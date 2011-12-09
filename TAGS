@@ -1,0 +1,1496 @@
+
+attribute.c,439
+find_attribute 51,1560
+set_attribute 69,1886
+free_attribute_set 96,2550
+get_i_attribute 107,2794
+get_c_attribute 113,2932
+get_d_attribute 119,3069
+get_p_attribute 125,3209
+get_r_attribute 131,3349
+get_s_attribute 137,3489
+has_attribute 143,3626
+new_attribute_set 149,3754
+set_c_attribute 172,4292
+set_d_attribute 180,4457
+set_i_attribute 188,4623
+set_p_attribute 198,4868
+set_r_attribute 206,5033
+set_s_attribute 214,5199
+
+attribute.h,2449
+#define __ATTRIBUTE_H__2,24
+typedef enum atttype 32,1055
+    ACHAR,34,1082
+    AINT,35,1094
+    ALONG,36,1105
+    ASTRING,37,1117
+    AFLOAT,38,1131
+    ADOUBLE,39,1144
+    APOINTER,40,1158
+    AMISC41,1172
+  } atttype;42,1182
+typedef union Attribute49,1405
+    char cval;51,1433
+    int ival;52,1448
+    long lval;53,1462
+    char *sval;sval54,1477
+    float fval;55,1493
+    double dval;56,1509
+    void *pval;pval57,1526
+  } Attribute;58,1571
+enum TypeID62,1624
+      TYPE_BOOLEAN,65,1660
+      TYPE_INTEGER,66,1680
+      TYPE_REAL,67,1700
+      TYPE_CHAR,68,1717
+      TYPE_STRING,69,1734
+      TYPE_ARRAY,71,1777
+      TYPE_RECORD,72,1795
+      TYPE_SUBRANGE,73,1814
+      TYPE_FUNCTION,74,1835
+      TYPE_PROCEDURE75,1856
+typedef enum TypeID TypeID;78,1889
+typedef struct Type Type;79,1917
+typedef struct Param Param;80,1943
+typedef struct ArrayType ArrayType;82,1993
+typedef struct FunctionProcedureType FunctionProcedureType;83,2029
+typedef struct RecordType RecordType;84,2089
+typedef struct ScalarType ScalarType;85,2127
+typedef struct SubrangeType SubrangeType;86,2165
+struct Param89,2254
+  char *name;name91,2269
+  Type *type;type92,2283
+struct ArrayType95,2301
+  Type *component_type;component_type97,2320
+  int dimensions;98,2344
+  Type **index_types;index_types99,2362
+struct FunctionProcedureType105,2526
+  Param *params;params107,2557
+  Type *return_val;return_val108,2574
+  int num_params;109,2594
+struct RecordType112,2616
+  Type *fields;fields114,2636
+struct ScalarType 117,2656
+struct SubrangeType122,2752
+  Type *type;type124,2774
+  Attribute lower;125,2788
+  Attribute upper;126,2807
+struct Type130,2831
+  TypeID type;132,2845
+    ArrayType *array;array135,2872
+    FunctionProcedureType *function_procedure;function_procedure136,2894
+    RecordType *record;record137,2941
+    ScalarType *scalar;scalar138,2965
+    SubrangeType *subrange;subrange139,2989
+    char *name;name140,3017
+    Type *base_type;base_type141,3033
+  } info;142,3082
+typedef struct TypedAttribute148,3157
+    atttype type;150,3191
+    Attribute val;151,3209
+  } TypedAttribute;152,3228
+typedef struct NamedAttribute159,3443
+    char *name;name161,3477
+    Attribute val;162,3493
+  } NamedAttribute;163,3512
+typedef struct AttributeSet165,3533
+  int capacity;167,3563
+  int size;168,3579
+  NamedAttribute *contents;contents169,3636
+} AttributeSet;170,3709
+
+attribute.h~,2594
+#define __ATTRIBUTE_H__2,24
+typedef enum atttype 32,1055
+    ACHAR,34,1082
+    AINT,35,1094
+    ALONG,36,1105
+    ASTRING,37,1117
+    AFLOAT,38,1131
+    ADOUBLE,39,1144
+    APOINTER,40,1158
+    AMISC41,1172
+  } atttype;42,1182
+typedef union Attribute49,1405
+    char cval;51,1433
+    int ival;52,1448
+    long lval;53,1462
+    char *sval;sval54,1477
+    float fval;55,1493
+    double dval;56,1509
+    void *pval;pval57,1526
+  } Attribute;58,1571
+enum TypeID62,1624
+      TYPE_BOOLEAN,65,1660
+      TYPE_INTEGER,66,1680
+      TYPE_REAL,67,1700
+      TYPE_CHAR,68,1717
+      TYPE_STRING,69,1734
+      TYPE_ARRAY,71,1777
+      TYPE_RECORD,72,1795
+      TYPE_SUBRANGE,73,1814
+      TYPE_FUNCTION,74,1835
+      TYPE_PROCEDURE75,1856
+typedef enum TypeID TypeID;78,1889
+typedef struct Type Type;79,1917
+typedef struct Param Param;80,1943
+typedef struct ArrayType ArrayType;82,1993
+typedef struct FunctionType FunctionType;83,2029
+typedef struct ProcedureType ProcedureType;84,2071
+typedef struct RecordType RecordType;85,2115
+typedef struct ScalarType ScalarType;86,2153
+typedef struct SubrangeType SubrangeType;87,2191
+struct Param90,2280
+  char *name;name92,2295
+  Type *type;type93,2309
+struct ArrayType96,2327
+  Type *component_type;component_type98,2346
+  int dimensions;99,2370
+  Type **index_types;index_types100,2388
+struct FunctionProcedureType106,2551
+  Param *params;params108,2582
+  Type *return_val;return_val109,2599
+  int num_params;110,2619
+struct ProcedureType114,2693
+  Param *params;params116,2716
+  int num_params;117,2733
+struct RecordType120,2755
+  Type *fields;fields122,2775
+struct ScalarType 125,2795
+struct SubrangeType130,2891
+  Type *type;type132,2913
+  Attribute lower;133,2927
+  Attribute upper;134,2946
+struct Type138,2970
+  TypeID type;140,2984
+    ArrayType *array;array143,3011
+    FunctionType *function;function144,3033
+    ProcedureType *procedure;procedure145,3061
+    RecordType *record;record146,3091
+    ScalarType *scalar;scalar147,3115
+    SubrangeType *subrange;subrange148,3139
+    char *name;name149,3167
+    Type *base_type;base_type150,3183
+  } info;151,3232
+typedef struct TypedAttribute157,3307
+    atttype type;159,3341
+    Attribute val;160,3359
+  } TypedAttribute;161,3378
+typedef struct NamedAttribute168,3593
+    char *name;name170,3627
+    Attribute val;171,3643
+  } NamedAttribute;172,3662
+typedef struct AttributeSet174,3683
+  int capacity;176,3713
+  int size;177,3729
+  NamedAttribute *contents;contents178,3786
+} AttributeSet;179,3859
+
+check-mem.c,37
+mem_allocated 48,1463
+main 60,1665
+
+parse-tree.c,302
+int TYPE_NODE 43,1475
+int TYPE_TNODE 44,1498
+int TYPE_NNODE 45,1522
+print_nnode 65,2014
+print_tnode 91,2653
+print_tree_indented 136,3966
+free_tree 162,4594
+get_child 197,5576
+is_nnode 208,5765
+is_tnode 214,5843
+new_nnode 220,5924
+new_tnode 235,6279
+print_tree 248,6540
+set_child 254,6642
+
+parse-tree.h,378
+#define __PARSE_TREE_H__2,25
+typedef struct Node61,2067
+    int type;63,2091
+    int symbol;64,2105
+    AttributeSet *attributes;attributes65,2121
+  } Node;66,2151
+typedef struct TNode73,2314
+    Node parent;75,2339
+  } TNode;76,2356
+typedef struct NNode82,2460
+    Node parent;84,2485
+    int arity;85,2502
+    Node **children;children86,2552
+  } NNode;87,2592
+
+pascal.tab.o,229
+<YÉX!!å'­¼]!?\­Z%^!!»å'­¼	X"Y"Y229,44607
+<YÉX!!å'­¼]!?\­Z%^!!»å'­¼	X"Y"^!!å'­¼_!'­¼X×Y×Y"Y"Y"]!?]!?\×Y×Y×YY×Y×229,44607
+X$?^×Y×Y×^$$230,44738
+
+pascal.y~,11472
+#define YYSTYPE 40,1208
+typedef enum nonterms129,2514
+    _addop,131,2540
+    _array_type,132,2552
+    _assignment_statement,133,2569
+    _case_element,134,2596
+    _case_element_list,135,2615
+    _case_statement,136,2639
+    _component_variable,137,2660
+    _compound_statement,138,2685
+    _cons,139,2710
+    _constant,140,2721
+    _constant_definition,141,2736
+    _constant_definition_list,142,2762
+    _constant_definition_part,143,2793
+    _constant_list,144,2824
+    _direction,145,2844
+    _empty_set,146,2860
+    _empty_statement,147,2876
+    _entire_variable,148,2898
+    _epsilon,149,2920
+    _expr,150,2934
+    _expr_list,151,2945
+    _factor,152,2961
+    _field_designator,153,2974
+    _field_list,154,2997
+    _file_type,155,3014
+    _fixed_part,156,3030
+    _formals,157,3047
+    _formals_list,158,3061
+    _formal_parameters,159,3080
+    _for_statement,160,3104
+    _function_call,161,3124
+    _function_declaration,162,3144
+    _function_heading,163,3171
+    _function_parameter,164,3194
+    _goto_statement,165,3219
+    _id,166,3240
+    _idlist,167,3249
+    _if_then_else_statement,168,3262
+    _if_statement,169,3291
+    _if_then_statement,170,3310
+    _indexed_variable,171,3334
+    _label_declaration_part,172,3357
+    _labeled_statement,173,3386
+    _safe_statement,174,3410
+    _mulop,175,3431
+    _negate,176,3443
+    _packed_structured_type,177,3456
+    _parameter_group,178,3485
+    _pointer_type,179,3507
+    _procedure_call,180,3526
+    _procedure_declaration,181,3547
+    _procedure_declaration_list,182,3575
+    _procedure_heading,183,3608
+    _procedure_parameter,184,3632
+    _program,185,3658
+    _program_heading,186,3672
+    _record_section,187,3694
+    _record_section_list,188,3715
+    _record_type,189,3741
+    _referenced_variable,190,3759
+    _relop,191,3785
+    _repeat_statement,192,3797
+    _repetitive_statement,193,3820
+    _scalar_type,194,3847
+    _scale_factor,195,3865
+    _set,196,3884
+    _set_type,197,3894
+    _sign,198,3909
+    _signed_identifier,199,3920
+    _signed_number,200,3944
+    _simple,201,3964
+    _simple_statement,202,3977
+    _simple_type,203,4000
+    _simple_type_list,204,4018
+    _statement,205,4041
+    _statement_list,206,4057
+    _statement_part,207,4078
+    _string,208,4099
+    _structured_statement,209,4112
+    _structured_type,210,4139
+    _subrange_type,211,4161
+    _term,212,4181
+    _type,213,4192
+    _type_definition,214,4203
+    _type_definition_list,215,4225
+    _type_definition_part,216,4252
+    _unlabeled_statement,217,4279
+    _unpacked_structured_type,218,4305
+    _unsigned_constant,219,4336
+    _unsigned_integer,220,4360
+    _unsigned_integer_list,221,4383
+    _unsigned_number,222,4411
+    _unsigned_real,223,4433
+    _value_parameter,224,4453
+    _variable,225,4475
+    _variable_declaration,226,4490
+    _variable_declaration_list,227,4517
+    _variable_declaration_part,228,4549
+    _variable_list,229,4581
+    _variable_parameter,230,4601
+    _variant,231,4626
+    _variant_list,232,4640
+    _variant_part,233,4659
+    _while_statement,234,4678
+    _with_statement,235,4700
+  } nonterms;236,4721
+char *nonterm_names[nonterm_names239,4773
+char *toknames[toknames349,7124
+yyerror 373,8000
+Node *tree tree391,8395
+new_interior_node 402,8614
+new_epsilon 433,9264
+simple_unary_tree 444,9555
+cons 460,9944
+list_length 469,10104
+list2node 486,10445
+core_length 526,11497
+core2node 543,11904
+type 565,12418
+new_type_struct 573,12581
+types_compatible 584,12822
+get_operator 598,13109
+get_arity 604,13181
+Type *get_params(get_params614,13359
+#define MAX_PARAMS 624,13522
+Param params[params627,13584
+int params_size 630,13649
+clear_params 633,13677
+get_num_params 639,13720
+insert_param 646,13820
+function_procedure_type 657,14050
+SymTab *stab;stab693,15220
+start701,15364
+    program721,16039
+  : _INTEGER732,16270
+  : unsigned_integer unsigned_integer_list_tail745,16674
+unsigned_integer_list_tail752,16869
+  | _COMMA unsigned_integer unsigned_integer_list_tail755,16943
+  : _REAL762,17055
+  | unsigned_real777,17518
+  : _PLUS781,17547
+  | _DASH783,17612
+  : _STRING788,17689
+  : _IDENTIFIER803,18098
+  : unsigned_number820,18640
+  | string822,18677
+  | _NIL824,18705
+  | _TRUE826,18768
+  | _FALSE828,18833
+  : sign unsigned_number833,18919
+  : sign id841,19105
+  : unsigned_number849,19273
+  | signed_number851,19310
+  | id853,19345
+  | signed_identifier855,19369
+  | string857,19408
+  : constant constant_list_tail862,19455
+constant_list_tail869,19626
+  | _COMMA constant constant_list_tail872,19692
+  : id _EQ constant879,19794
+  : simple_type897,20233
+  | structured_type899,20266
+  | pointer_type901,20303
+  : id _EQ type906,20358
+  : scalar_type926,20997
+  | subrange_type928,21030
+  | id930,21065
+  : _LPAREN idlist _RPAREN951,21767
+  : id idtail959,21939
+  | _COMMA id idtail970,22227
+  : unpacked_structured_type1032,24313
+  | packed_structured_type1034,24359
+  : _PACKED unpacked_structured_type1039,24431
+  : array_type1047,24641
+  | record_type1049,24673
+  | set_type1051,24706
+  | file_type1053,24736
+  : simple_type simple_type_list_tail1098,26177
+simple_type_list_tail1105,26357
+  | _COMMA simple_type simple_type_list_tail1108,26426
+  : _RECORD field_list _END1115,26559
+  : field_list_kernel1136,27545
+  : record_section field_list_tail1147,27812
+  | variant_part1152,27929
+field_list_tail1158,28038
+  | _SEMICOLON field_list_kernel1165,28222
+  : idlist _COLON type1170,28292
+  : _CASE id _COLON id _OF variant_list1178,28473
+  : constant_list _COLON _LPAREN field_list _RPAREN1186,28667
+  | constant_list1191,28851
+  : variant variant_list_tail1199,29015
+variant_list_tail1206,29183
+  | _SEMICOLON variant variant_list_tail1209,29248
+  : _SET _OF simple_type1216,29371
+  : _FILE _OF type1226,29581
+  : _POINTER id1236,29791
+  : entire_variable1281,31271
+  | component_variable1283,31308
+  | referenced_variable1285,31348
+  : variable variable_list_tail1290,31408
+variable_list_tail1297,31579
+  | _COMMA variable variable_list_tail1300,31645
+  : id 1307,31778
+  : indexed_variable1321,32212
+  | field_designator1323,32250
+  : variable _LBRACKET expr_list _RBRACKET1330,32358
+  : variable _DOT id1340,32612
+  : variable _POINTER1355,33038
+  : variable1365,33250
+  | unsigned_constant1367,33280
+  | function_call1369,33319
+  | set1371,33354
+  | _LPAREN expr _RPAREN1373,33379
+  | _NOT factor1375,33421
+  : _LBRACKET expr_list _RBRACKET1383,33573
+  | _LBRACKET _RBRACKET1388,33731
+  : term mulop factor1396,33891
+  | factor1438,35485
+  : simple addop term1445,35535
+  | addop term1480,36902
+  | term1485,37048
+  | simple1510,37883
+  : expr expr_list_tail1515,37926
+expr_list_tail1522,38085
+  | _COMMA expr expr_list_tail1525,38147
+  : _STAR1536,38354
+  | _SLASH1541,38490
+  | _DIV1546,38628
+  | _MOD1551,38762
+  | _AND1556,38896
+  : _PLUS1566,39088
+  | _DASH1571,39224
+  | _OR1576,39360
+  : _LT1586,39554
+  | _LE1591,39686
+  | _EQ1596,39818
+  | _NE1601,39950
+  | _GE1606,40082
+  | _GT1611,40214
+  | _IN1616,40346
+  : id  _LPAREN _RPAREN1630,40680
+  | id _LPAREN expr_list _RPAREN1635,40838
+  : statement statement_list_tail1653,41506
+statement_list_tail1660,41680
+  | _SEMICOLON statement statement_list_tail1663,41747
+  : safe_statement1668,41835
+  | unsafe_statement1670,41871
+  : labeled_safe_statement1675,41929
+  | unlabeled_safe_statement1677,41973
+  : labeled_unsafe_statement1682,42041
+  | unlabeled_unsafe_statement1684,42087
+  : unsigned_integer _COLON unlabeled_safe_statement1689,42163
+  : unsigned_integer _COLON unlabeled_unsafe_statement1697,42388
+  : simple_statement1705,42619
+  | safe_structured_statement1707,42657
+  : unsafe_structured_statement1712,42736
+  : assignment_statement1719,42853
+  | procedure_call1721,42895
+  | goto_statement1723,42931
+  | empty_statement1725,42967
+  : id1750,43644
+  | id _LPAREN expr_list _RPAREN1755,43786
+  : _GOTO unsigned_integer1765,44024
+empty_statement1774,44241
+  : compound_statement1785,44474
+  | safe_conditional_statement1787,44514
+  | safe_repetitive_statement1789,44562
+  | safe_with_statement1791,44609
+  : unsafe_conditional_statement1796,44683
+  | unsafe_repetitive_statement1798,44733
+  | unsafe_with_statement1800,44782
+  : _BEGIN statement_list _END1807,44892
+  : safe_if_then_else_statement1814,45018
+  | case_statement1816,45067
+  : if_then_statement1821,45137
+  | unsafe_if_then_else_statement1823,45176
+  : _IF expr _THEN safe_statement1830,45296
+  : _IF expr _THEN safe_statement _ELSE safe_statement1838,45506
+  : _IF expr _THEN safe_statement _ELSE unsafe_statement1846,45748
+  : _CASE expr _OF case_element_list _END1857,46018
+  : constant_list _COLON statement1865,46217
+  : case_element case_element_list_tail1873,46412
+case_element_list_tail1880,46595
+  | _SEMICOLON case_element case_element_list_tail1883,46665
+  : safe_while_statement1890,46819
+  | repeat_statement1892,46861
+  | safe_for_statement1894,46899
+  : unsafe_while_statement1899,46972
+  | unsafe_for_statement1901,47016
+  : _WHILE expr _DO safe_statement1908,47125
+  : _WHILE expr _DO unsafe_statement1916,47328
+  : _REPEAT statement_list _UNTIL expr1926,47569
+  : _FOR id _ASSIGN expr direction expr _DO safe_statement1936,47812
+  : _FOR id _ASSIGN expr direction expr _DO unsafe_statement1945,48078
+  : _TO1954,48335
+  | _DOWNTO1959,48471
+  : _WITH variable_list _DO safe_statement1969,48678
+  : _WITH variable_list _DO unsafe_statement1977,48889
+    compound_statement1993,49309
+formal_parameters2045,51203
+  | formals_list2048,51268
+  : value_parameter2053,51315
+  | variable_parameter2055,51352
+  | function_parameter2057,51392
+  | procedure_parameter2059,51432
+  : formals formals_list_tail2064,51491
+formals_list_tail2071,51659
+  | _SEMICOLON formals formals_list_tail2074,51724
+  : parameter_group2079,51814
+  : _VAR parameter_group2087,51994
+  : _FUNCTION parameter_group2095,52182
+  : _PROCEDURE idlist2103,52379
+label_declaration_part2141,53522
+  | _LABEL unsigned_integer_list _SEMICOLON2145,53585
+constant_definition_part2152,53778
+    _CONST constant_definition_list 2156,53840
+constant_definition_list_tail2169,54177
+  | constant_definition _SEMICOLON constant_definition_list_tail2172,54254
+type_definition_part2175,54351
+  | _TYPE type_definition_list 2178,54405
+  : type_definition _SEMICOLON type_definition_list_tail2183,54480
+type_definition_list_tail2190,54683
+  | type_definition _SEMICOLON type_definition_list_tail2193,54756
+variable_declaration_part2197,54846
+  : variable_declaration _SEMICOLON variable_declaration_list_tail2206,55013
+variable_declaration_list_tail2213,55231
+  | variable_declaration _SEMICOLON variable_declaration_list_tail2216,55309
+procedure_declaration_list2220,55409
+  | procedure_or_function_declaration _SEMICOLON procedure_declaration_list_tail2223,55481
+procedure_declaration_list_tail2230,55714
+  | procedure_or_function_declaration _SEMICOLON procedure_declaration_list_tail2233,55793
+  : procedure_declaration2238,55941
+  | function_declaration2240,55984
+    compound_statement2253,56257
+  : _FUNCTION id _LPAREN formal_parameters _RPAREN _COLON id _SEMICOLON2262,56499
+    _DOT2279,56945
+program_heading 2287,57142
+  | _PROGRAM id _SEMICOLON2293,57310
+  | _PROGRAM id _LPAREN idlist _RPAREN _SEMICOLON2298,57474
+
+pnonterminals.h,257
+#define __PNONTERMINALS_H__2,28
+typedef enum nonterminal55,1724
+    _NONTERMINALS_START 57,1753
+    _EXP_,59,1786
+    _TERM_,60,1797
+    _FACTOR_,61,1809
+    _MULOP_,62,1823
+    _ADDOP_,63,1836
+    _NONTERMINALS_END65,1854
+  } nonterminal;66,1876
+
+print-tree.c,14
+main 43,1299
+
+print-tree.o,14
+ELFELF1,0
+
+ptokens.c,1752
+#define __PTOKENS_H__2,22
+typedef enum toktype67,2600
+    _ERROR 70,2647
+    _EOF 71,2692
+    GENERAL_START 75,2837
+    _IDENTIFIER,76,2862
+    GENERAL_END,77,2879
+    CONSTANTS_START 80,2929
+    _INTEGER,81,2956
+    _REAL,82,2970
+    _STRING,83,2991
+    CONSTANTS_END,84,3011
+    KEYWORDS_START 87,3058
+    _ARRAY,88,3084
+    _BEGIN,89,3096
+    _CASE,90,3108
+    _CONST,91,3119
+    _DO,92,3131
+    _DOWNTO,93,3140
+    _ELSE,94,3153
+    _END,95,3164
+    _FILE,96,3174
+    _FOR,97,3185
+    _FUNCTION,98,3195
+    _GOTO,99,3210
+    _IF,100,3221
+    _IN,101,3230
+    _LABEL,102,3239
+    _NIL,103,3251
+    _OF,104,3261
+    _PACKED,105,3270
+    _PROCEDURE,106,3283
+    _PROGRAM,107,3299
+    _RECORD,108,3313
+    _REPEAT,109,3326
+    _SET,110,3339
+    _THEN,111,3349
+    _TO,112,3360
+    _TYPE,113,3369
+    _UNTIL,114,3380
+    _VAR,115,3392
+    _WHILE,116,3402
+    _WITH,117,3414
+    KEYWORDS_END,118,3425
+    PUNCTUATION_START 121,3477
+    _ASSIGN,122,3506
+    _COLON,123,3536
+    _COMMA,124,3548
+    _ELLIPSES,125,3560
+    _POINTER,126,3590
+    _SEMICOLON,127,3661
+    _LPAREN,128,3677
+    _RPAREN,129,3690
+    _LBRACKET,130,3703
+    _RBRACKET,131,3718
+    PUNCTUATION_END,132,3733
+    OPERATORS_START 135,3799
+    _NOT,136,3827
+    MULOPS_START 138,3882
+    _AND,139,3907
+    _DIV,140,3961
+    _MOD,141,3971
+    _SLASH,142,3981
+    _STAR,143,3999
+    MULOPS_END,144,4016
+    ADDOPS_START 146,4033
+    _DASH,147,4058
+    _OR,148,4075
+    _PLUS,149,4128
+    ADDOPS_END,150,4157
+    RELOPS_START 152,4174
+    _EQ,153,4199
+    _GE,154,4228
+    _GT,155,4258
+    _LE,156,4287
+    _LT,157,4317
+    _NE,158,4346
+    RELOPS_END,159,4376
+    OPERATORS_END,160,4392
+  } toktype;162,4412
+
+ptokens.h,1739
+#define __PTOKENS_H__2,22
+typedef enum toktype54,1950
+    _ERROR 57,1997
+    _EOF 58,2042
+    GENERAL_START 62,2187
+    _IDENTIFIER,63,2212
+    GENERAL_END,64,2229
+    CONSTANTS_START 67,2279
+    _INTEGER,68,2306
+    _REAL,69,2320
+    _STRING,70,2341
+    CONSTANTS_END,71,2361
+    KEYWORDS_START 74,2408
+    _ARRAY,75,2434
+    _BEGIN,76,2446
+    _CASE,77,2458
+    _CONST,78,2469
+    _DO,79,2481
+    _DOWNTO,80,2490
+    _ELSE,81,2503
+    _END,82,2514
+    _FILE,83,2524
+    _FOR,84,2535
+    _FUNCTION,85,2545
+    _GOTO,86,2560
+    _IF,87,2571
+    _IN,88,2580
+    _LABEL,89,2589
+    _NIL,90,2601
+    _OF,91,2611
+    _PACKED,92,2620
+    _PROCEDURE,93,2633
+    _PROGRAM,94,2649
+    _RECORD,95,2663
+    _REPEAT,96,2676
+    _SET,97,2689
+    _THEN,98,2699
+    _TO,99,2710
+    _TYPE,100,2719
+    _UNTIL,101,2730
+    _VAR,102,2742
+    _WHILE,103,2752
+    _WITH,104,2764
+    KEYWORDS_END,105,2775
+    PUNCTUATION_START 108,2827
+    _ASSIGN,109,2856
+    _COLON,110,2886
+    _COMMA,111,2898
+    _ELLIPSES,112,2910
+    _POINTER,113,2940
+    _SEMICOLON,114,3011
+    _LPAREN,115,3027
+    _RPAREN,116,3040
+    _LBRACKET,117,3053
+    _RBRACKET,118,3068
+    PUNCTUATION_END,119,3083
+    OPERATORS_START 122,3149
+    _NOT,123,3177
+    MULOPS_START 125,3232
+    _AND,126,3257
+    _DIV,127,3311
+    _MOD,128,3321
+    _SLASH,129,3331
+    _STAR,130,3349
+    MULOPS_END,131,3366
+    ADDOPS_START 133,3383
+    _DASH,134,3408
+    _OR,135,3425
+    _PLUS,136,3478
+    ADDOPS_END,137,3507
+    RELOPS_START 139,3524
+    _EQ,140,3549
+    _GE,141,3578
+    _GT,142,3608
+    _LE,143,3637
+    _LT,144,3667
+    _NE,145,3696
+    RELOPS_END,146,3726
+    OPERATORS_END,147,3742
+  } toktype;149,3762
+
+simple.p,29
+procedure print_list(28,290
+
+symtab.c,208
+symtab_new 16,540
+symtab_free 51,1551
+symtab_enter 72,2029
+symtab_exit 101,2928
+symtab_put 123,3423
+symtab_update 146,4061
+symtab_get 181,5133
+symtab_is_in_scope 198,5571
+symtab_is_declared 217,6124
+
+symtab.h,251
+#define __SYMTAB_H__9,356
+#define SCOPES_NUM 14,420
+typedef struct Scope21,550
+  GHashTable *scope;scope23,573
+} Scope;24,645
+typedef struct SymTab29,808
+  int capacity;31,832
+  int size;32,848
+  Scope *scopes;scopes33,899
+} SymTab;34,945
+
+#temp.c#,253
+int i;1,0
+int num_vars 4,56
+int type 6,142
+for (i = 0; i < num_vars;9,233
+  Node *id id12,373
+  char *var_name var_name13,405
+  AttributeSet *sym_attributes sym_attributes15,469
+AttributeSet *node_attributes node_attributes27,791
+$$ 28,846
+
+temp.c,253
+int i;1,0
+int num_vars 4,56
+int type 6,142
+for (i = 0; i < num_vars;9,233
+  Node *id id12,373
+  char *var_name var_name13,405
+  AttributeSet *sym_attributes sym_attributes15,469
+AttributeSet *node_attributes node_attributes25,789
+$$ 26,844
+
+lex.yy.c,5973
+#define  YY_INT_ALIGNED 4,21
+#define FLEX_SCANNER8,99
+#define YY_FLEX_MAJOR_VERSION 9,120
+#define YY_FLEX_MINOR_VERSION 10,152
+#define YY_FLEX_SUBMINOR_VERSION 11,184
+#define FLEX_BETA13,253
+#define FLEXINT_H29,551
+#define __STDC_LIMIT_MACROS 39,862
+typedef int8_t flex_int8_t;43,922
+typedef uint8_t flex_uint8_t;44,950
+typedef int16_t flex_int16_t;45,980
+typedef uint16_t flex_uint16_t;46,1010
+typedef int32_t flex_int32_t;47,1042
+typedef uint32_t flex_uint32_t;48,1072
+typedef signed char flex_int8_t;50,1110
+typedef short int flex_int16_t;51,1143
+typedef int flex_int32_t;52,1175
+typedef unsigned char flex_uint8_t;53,1201
+typedef unsigned short int flex_uint16_t;54,1238
+typedef unsigned int flex_uint32_t;55,1280
+#define INT8_MIN 59,1366
+#define INT16_MIN 62,1429
+#define INT32_MIN 65,1496
+#define INT8_MAX 68,1567
+#define INT16_MAX 71,1629
+#define INT32_MAX 74,1693
+#define UINT8_MAX 77,1762
+#define UINT16_MAX 80,1826
+#define UINT32_MAX 83,1892
+#define YY_USE_CONST93,2062
+#define YY_USE_CONST100,2183
+#define yyconst 106,2285
+#define yyconst108,2313
+#define YY_NULL 112,2370
+#define YY_SC_TO_UI(119,2617
+#define BEGIN 125,2848
+#define YY_START 131,3047
+#define YYSTATE 132,3087
+#define YY_STATE_EOF(135,3170
+#define YY_NEW_FILE 138,3290
+#define YY_END_OF_BUFFER_CHAR 140,3329
+#define YY_BUF_SIZE 149,3595
+#define YY_BUF_SIZE 151,3627
+#define YY_STATE_BUF_SIZE 157,3777
+#define YY_TYPEDEF_YY_BUFFER_STATE160,3885
+typedef struct yy_buffer_state *YY_BUFFER_STATE;YY_BUFFER_STATE161,3920
+#define EOB_ACT_CONTINUE_SCAN 168,4025
+#define EOB_ACT_END_OF_FILE 169,4057
+#define EOB_ACT_LAST_MATCH 170,4087
+    #define YY_LESS_LINENO(172,4117
+#define yyless(175,4232
+#define unput(188,4587
+#define YY_TYPEDEF_YY_SIZE_T191,4662
+typedef size_t yy_size_t;192,4691
+#define YY_STRUCT_YY_BUFFER_STATE196,4759
+struct yy_buffer_state197,4793
+	FILE *yy_input_file;yy_input_file199,4819
+	char *yy_ch_buf;yy_ch_buf201,4842
+	char *yy_buf_pos;yy_buf_pos202,4880
+	yy_size_t yy_buf_size;207,5023
+	int yy_n_chars;212,5133
+	int yy_is_our_buffer;218,5295
+	int yy_is_interactive;225,5533
+	int yy_at_bol;231,5700
+    int yy_bs_lineno;233,5717
+    int yy_bs_column;234,5763
+	int yy_fill_buffer;239,5898
+	int yy_buffer_status;241,5920
+#define YY_BUFFER_NEW 243,5944
+#define YY_BUFFER_NORMAL 244,5968
+#define YY_BUFFER_EOF_PENDING 255,6466
+static size_t yy_buffer_stack_top 261,6574
+static size_t yy_buffer_stack_max 262,6644
+static YY_BUFFER_STATE * yy_buffer_stack 263,6710
+#define YY_CURRENT_BUFFER 271,6978
+#define YY_CURRENT_BUFFER_LVALUE 278,7274
+static char yy_hold_char;281,7416
+static int yy_n_chars;282,7442
+int yyleng;283,7513
+static char *yy_c_buf_p yy_c_buf_p286,7571
+static int yy_init 287,7609
+static int yy_start 288,7670
+static int yy_did_buffer_switch_on_eof;293,7849
+#define YY_FLUSH_BUFFER 307,8369
+#define yy_new_buffer 317,8705
+#define yy_set_interactive(319,8745
+#define yy_set_bol(329,9021
+#define YY_AT_BOL(339,9264
+typedef unsigned char YY_CHAR;343,9347
+FILE *yyin yyin345,9379
+typedef int yy_state_type;347,9426
+int yylineno 351,9476
+#define yytext_ptr 354,9516
+#define YY_DO_BEFORE_ACTION 364,9869
+#define YY_NUM_RULES 371,10032
+#define YY_END_OF_BUFFER 372,10056
+struct yy_trans_info375,10165
+	flex_int32_t yy_verify;377,10189
+	flex_int32_t yy_nxt;378,10214
+static yyconst flex_int16_t yy_accept[yy_accept380,10240
+static yyconst flex_int32_t yy_ec[yy_ec404,11498
+static yyconst flex_int32_t yy_meta[yy_meta436,13220
+static yyconst flex_int16_t yy_base[yy_base448,13759
+static yyconst flex_int16_t yy_def[yy_def472,15033
+static yyconst flex_int16_t yy_nxt[yy_nxt496,16306
+static yyconst flex_int16_t yy_chk[yy_chk550,19355
+static yy_state_type yy_last_accepting_state;604,22404
+static char *yy_last_accepting_cpos;yy_last_accepting_cpos605,22450
+int yy_flex_debug 608,22514
+#define REJECT 613,22640
+#define yymore(614,22684
+#define YY_MORE_ADJ 615,22730
+#define YY_RESTORE_YY_MORE_OFFSET616,22752
+char *yytext;yytext617,22786
+#define INITIAL 635,23641
+#define YY_EXTRA_TYPE 646,23943
+#define YY_READ_BUF_SIZE 716,25222
+#define YY_READ_BUF_SIZE 718,25259
+#define ECHO 727,25499
+#define YY_INPUT(734,25709
+#define yyterminate(771,26623
+#define YY_START_STACK_INCR 776,26758
+#define YY_FATAL_ERROR(781,26848
+#define YY_DECL_IS_OURS 790,27081
+#define YY_DECL 794,27134
+#define YY_USER_ACTION801,27310
+#define YY_BREAK 806,27403
+#define YY_RULE_SETUP 809,27435
+static int yy_get_next_buffer 1397,38628
+    static yy_state_type yy_get_previous_state 1531,42217
+    static yy_state_type yy_try_NUL_trans 1563,43119
+    static void yyunput 1586,43791
+    static int yyinput 1625,44851
+    void yyrestart 1702,46612
+    void yy_switch_to_buffer 1719,46973
+static void yy_load_buffer_state 1750,47816
+    YY_BUFFER_STATE yy_create_buffer 1764,48289
+    void yy_delete_buffer 1792,48980
+    static void yy_init_buffer 1815,49505
+    void yy_flush_buffer 1843,50238
+void yypush_buffer_state 1872,50924
+void yypop_buffer_state 1902,51689
+static void yyensure_buffer_stack 1921,52084
+YY_BUFFER_STATE yy_scan_buffer 1970,53700
+YY_BUFFER_STATE yy_scan_string 2007,54773
+YY_BUFFER_STATE yy_scan_bytes 2020,55190
+#define YY_EXIT_FAILURE 2051,55913
+static void yy_fatal_error 2054,55947
+#undef yyless2062,56126
+#define yyless(2063,56140
+int yyget_lineno 2082,56599
+FILE *yyget_in yyget_in2091,56693
+FILE *yyget_out yyget_out2099,56777
+int yyget_leng 2107,56877
+char *yyget_text yyget_text2116,56964
+void yyset_lineno 2125,57080
+void yyset_in 2137,57305
+void yyset_out 2142,57366
+int yyget_debug 2147,57431
+void yyset_debug 2152,57490
+static int yy_init_globals 2157,57560
+int yylex_destroy 2186,58242
+static void yy_flex_strncpy 2212,58796
+static int yy_flex_strlen 2221,58957
+void *yyalloc yyalloc2231,59074
+void *yyrealloc yyrealloc2236,59145
+void yyfree 2248,59601
+#define YYTABLES_NAME 2253,59695
+
+pascal.l,17
+int yywrap 101,
+
+pascal_orig.y,873
+#define YYSTYPE 19,292
+typedef enum nonterms105,1559
+    _addop,107,1585
+    _assignment_statement,108,1597
+    _compound_statement,109,1624
+    _empty_statement,110,1649
+    _expr,111,1671
+    _factor,112,1682
+    _id,113,1695
+    _mulop,114,1704
+    _statement,115,1716
+    _statement_list,116,1732
+    _term,117,1753
+  } nonterms;118,1764
+char *nonterm_names[nonterm_names121,1816
+char *toknames[toknames137,2070
+yyerror 160,2914
+Node *tree tree173,3188
+simple_unary_tree 179,3354
+  : exstart189,3583
+  : statprogram194,3622
+  : assignstatement199,3666
+  : id _ASSIGN exprassignment_statement208,3800
+  : _BEGIN statemencompound_statement219,4062
+  :empty_statement224,4134
+  : statementstatement_list233,4308
+  : eexpr246,4609
+  : tterm261,4861
+  : _INfactor276,5117
+  : _Paddop290,5406
+  : _Smulop303,5689
+  :id316,5974
+
+pascal.tab.c,6574
+#define YYBISON 46,2102
+#define YYBISON_VERSION 49,2143
+#define YYSKELETON_NAME 52,2198
+#define YYPURE 55,2253
+#define YYPUSH 58,2292
+#define YYPULL 61,2331
+#define YYLSP_NEEDED 64,2373
+# define YYDEBUG 664,15584
+# undef YYERROR_VERBOSE669,15674
+# define YYERROR_VERBOSE 670,15698
+# define YYERROR_VERBOSE 672,15731
+# define YYTOKEN_TABLE 677,15821
+# define YYTOKENTYPE683,15890
+   enum yytokentype 686,16014
+     TOKENS_START 687,16036
+     _ERROR 688,16061
+     GENERAL_START 689,16080
+     _IDENTIFIER 690,16106
+     GENERAL_END 691,16130
+     CONSTANTS_START 692,16154
+     _INTEGER 693,16182
+     _REAL 694,16203
+     _STRING 695,16221
+     CONSTANTS_END 696,16241
+     KEYWORDS_START 697,16267
+     _ARRAY 698,16294
+     _BEGIN 699,16313
+     _CASE 700,16332
+     _CONST 701,16350
+     _DO 702,16369
+     _DOWNTO 703,16385
+     _ELSE 704,16405
+     _END 705,16423
+     _EOL 706,16440
+     _FALSE 707,16457
+     _FILE 708,16476
+     _FOR 709,16494
+     _FUNCTION 710,16511
+     _GOTO 711,16533
+     _IF 712,16551
+     _IN 713,16567
+     _LABEL 714,16583
+     _NIL 715,16602
+     _OF 716,16619
+     _PACKED 717,16635
+     _PROCEDURE 718,16655
+     _PROGRAM 719,16678
+     _RECORD 720,16699
+     _REPEAT 721,16719
+     _SET 722,16739
+     _THEN 723,16756
+     _TO 724,16774
+     _TRUE 725,16790
+     _TYPE 726,16808
+     _UNTIL 727,16826
+     _VAR 728,16845
+     _WHILE 729,16862
+     _WITH 730,16881
+     KEYWORDS_END 731,16899
+     PUNCTUATION_START 732,16924
+     _ASSIGN 733,16954
+     _COLON 734,16974
+     _COMMA 735,16993
+     _ELLIPSES 736,17012
+     _POINTER 737,17034
+     _SEMICOLON 738,17055
+     _LPAREN 739,17078
+     _RPAREN 740,17098
+     _LBRACKET 741,17118
+     _RBRACKET 742,17140
+     _DOT 743,17162
+     PUNCTUATION_END 744,17179
+     OPERATORS_START 745,17207
+     _NOT 746,17235
+     MULOPS_START 747,17252
+     _AND 748,17277
+     _DIV 749,17294
+     _MOD 750,17311
+     _SLASH 751,17328
+     _STAR 752,17347
+     MULOPS_END 753,17365
+     ADDOPS_START 754,17388
+     _DASH 755,17413
+     _OR 756,17431
+     _PLUS 757,17447
+     ADDOPS_END 758,17465
+     RELOPS_START 759,17488
+     _EQ 760,17513
+     _GE 761,17529
+     _GT 762,17545
+     _LE 763,17561
+     _LT 764,17577
+     _NE 765,17593
+     RELOPS_END 766,17609
+     OPERATORS_END 767,17632
+     TOKENS_END 768,17658
+typedef int YYSTYPE;775,17751
+# define YYSTYPE_IS_TRIVIAL 776,17772
+# define yystype 777,17802
+# define YYSTYPE_IS_DECLARED 778,17864
+# undef short789,18021
+typedef YYTYPE_UINT8 yytype_uint8;793,18063
+typedef unsigned char yytype_uint8;795,18104
+typedef YYTYPE_INT8 yytype_int8;799,18167
+typedef signed char yytype_int8;802,18300
+typedef short int yytype_int8;804,18339
+typedef YYTYPE_UINT16 yytype_uint16;808,18399
+typedef unsigned short int yytype_uint16;810,18442
+typedef YYTYPE_INT16 yytype_int16;814,18512
+typedef short int yytype_int16;816,18553
+#  define YYSIZE_T 821,18632
+#  define YYSIZE_T 823,18687
+#  define YYSIZE_T 827,18893
+#  define YYSIZE_T 829,18926
+#define YYSIZE_MAXIMUM 833,18974
+#   define YY_(839,19120
+#  define YY_(843,19206
+# define YYUSE(849,19343
+# define YYUSE(851,19380
+# define YYID(856,19510
+YYID 861,19646
+#    define YYSTACK_ALLOC 879,19926
+#    define YYSTACK_ALLOC 883,20089
+#    define alloca 886,20209
+#    define YYSTACK_ALLOC 888,20245
+#      define _STDLIB_H 893,20509
+#  define YYSTACK_FREE(902,20656
+#   define YYSTACK_ALLOC_MAXIMUM 908,21053
+#  define YYSTACK_ALLOC 911,21135
+#  define YYSTACK_FREE 912,21168
+#   define YYSTACK_ALLOC_MAXIMUM 914,21230
+#    define _STDLIB_H 921,21514
+#   define YYMALLOC 925,21576
+#   define YYFREE 932,21843
+union yyalloc947,22326
+  yytype_int16 yyss_alloc;949,22342
+  YYSTYPE yyvs_alloc;950,22369
+# define YYSTACK_GAP_MAXIMUM 954,22470
+# define YYSTACK_BYTES(958,22618
+#   define YYCOPY(966,22878
+#   define YYCOPY(969,22985
+# define YYSTACK_RELOCATE(985,23476
+#define YYFINAL 999,23896
+#define YYLAST 1001,23955
+#define YYNTOKENS 1004,24018
+#define YYNNTS 1006,24081
+#define YYNRULES 1008,24137
+#define YYNSTATES 1010,24196
+#define YYUNDEFTOK 1013,24293
+#define YYMAXUTOK 1014,24315
+#define YYTRANSLATE(1016,24340
+static const yytype_uint8 yytranslate[yytranslate1020,24516
+static const yytype_uint16 yyprhs[yyprhs1061,27141
+static const yytype_int16 yyrhs[yyrhs1088,28847
+static const yytype_uint16 yyrline[yyrline1157,33574
+static const char *const yytname[yytname1187,35415
+static const yytype_uint16 yytoknum[yytoknum1249,39158
+static const yytype_uint8 yyr1[yyr11264,39900
+static const yytype_uint8 yyr2[yyr21291,41623
+static const yytype_uint8 yydefact[yydefact1320,43441
+static const yytype_int16 yydefgoto[yydefgoto1365,46406
+#define YYPACT_NINF 1384,47464
+static const yytype_int16 yypact[yypact1385,47489
+static const yytype_int16 yypgoto[yypgoto1430,50450
+#define YYTABLE_NINF 1451,51653
+static const yytype_int16 yytable[yytable1452,51679
+static const yytype_int16 yycheck[yycheck1517,56126
+static const yytype_uint8 yystos[yystos1584,60670
+#define yyerrok	1628,63604
+#define yyclearin	1629,63639
+#define YYEMPTY	1630,63676
+#define YYEOF	1631,63698
+#define YYACCEPT	1633,63716
+#define YYABORT	1634,63750
+#define YYERROR	1635,63783
+#define YYFAIL	1642,64021
+#define YYRECOVERING(1644,64052
+#define YYBACKUP(1646,64093
+#define YYTERROR	1664,64521
+#define YYERRCODE	1665,64540
+#define YYRHSLOC(1672,64746
+# define YYLLOC_DEFAULT(1674,64805
+#  define YY_LOCATION_PRINT(1700,65718
+#  define YY_LOCATION_PRINT(1705,65898
+# define YYLEX 1713,66043
+# define YYLEX 1715,66084
+#  define YYFPRINTF 1723,66242
+# define YYDPRINTF(1726,66279
+# define YY_SYMBOL_PRINT(1732,66386
+yy_symbol_value_print 1752,66928
+yy_symbol_print 1784,67596
+yy_stack_print 1810,68442
+# define YY_STACK_PRINT(1827,68803
+yy_reduce_print 1841,69213
+# define YY_REDUCE_PRINT(1865,69817
+int yydebug;1873,70046
+# define YYDPRINTF(1875,70080
+# define YY_SYMBOL_PRINT(1876,70105
+# define YY_STACK_PRINT(1877,70160
+# define YY_REDUCE_PRINT(1878,70197
+# define YYINITDEPTH 1884,70331
+# define YYMAXDEPTH 1895,70687
+#   define yystrlen 1904,70808
+yystrlen 1910,70992
+#   define yystpcpy 1927,71287
+yystpcpy 1934,71523
+yytnamerr 1962,72264
+yysyntax_error 2009,73323
+      enum { YYERROR_VERBOSE_ARGS_MAXIMUM 2022,73671
+yydestruct 2119,76492
+int yychar;2159,77216
+YYSTYPE yylval;2162,77280
+int yynerrs;2165,77336
+yyparse 2177,77564
+#define YYPOPSTACK(2235,78831
+#  undef YYSTACK_RELOCATE2317,81189
+
+pascal.y,9387
+#define YYSTYPE 40,1208
+typedef enum nonterms129,2514
+    _addop,131,2540
+    _array_type,132,2552
+    _assignment_statement,133,2569
+    _case_element,134,2596
+    _case_element_list,135,2615
+    _case_statement,136,2639
+    _component_variable,137,2660
+    _compound_statement,138,2685
+    _cons,139,2710
+    _constant,140,2721
+    _constant_definition,141,2736
+    _constant_definition_list,142,2762
+    _constant_definition_part,143,2793
+    _constant_list,144,2824
+    _direction,145,2844
+    _empty_set,146,2860
+    _empty_statement,147,2876
+    _entire_variable,148,2898
+    _epsilon,149,2920
+    _expr,150,2934
+    _expr_list,151,2945
+    _factor,152,2961
+    _field_designator,153,2974
+    _field_list,154,2997
+    _file_type,155,3014
+    _fixed_part,156,3030
+    _formals,157,3047
+    _formals_list,158,3061
+    _formal_parameters,159,3080
+    _for_statement,160,3104
+    _function_call,161,3124
+    _function_declaration,162,3144
+    _function_heading,163,3171
+    _function_parameter,164,3194
+    _goto_statement,165,3219
+    _id,166,3240
+    _idlist,167,3249
+    _if_then_else_statement,168,3262
+    _if_statement,169,3291
+    _if_then_statement,170,3310
+    _indexed_variable,171,3334
+    _label_declaration_part,172,3357
+    _labeled_statement,173,3386
+    _safe_statement,174,3410
+    _mulop,175,3431
+    _negate,176,3443
+    _packed_structured_type,177,3456
+    _parameter_group,178,3485
+    _pointer_type,179,3507
+    _procedure_call,180,3526
+    _procedure_declaration,181,3547
+    _procedure_declaration_list,182,3575
+    _procedure_heading,183,3608
+    _procedure_parameter,184,3632
+    _program,185,3658
+    _program_heading,186,3672
+    _record_section,187,3694
+    _record_section_list,188,3715
+    _record_type,189,3741
+    _referenced_variable,190,3759
+    _relop,191,3785
+    _repeat_statement,192,3797
+    _repetitive_statement,193,3820
+    _scalar_type,194,3847
+    _scale_factor,195,3865
+    _set,196,3884
+    _set_type,197,3894
+    _sign,198,3909
+    _signed_identifier,199,3920
+    _signed_number,200,3944
+    _simple,201,3964
+    _simple_statement,202,3977
+    _simple_type,203,4000
+    _simple_type_list,204,4018
+    _statement,205,4041
+    _statement_list,206,4057
+    _statement_part,207,4078
+    _string,208,4099
+    _structured_statement,209,4112
+    _structured_type,210,4139
+    _subrange_type,211,4161
+    _term,212,4181
+    _type,213,4192
+    _type_definition,214,4203
+    _type_definition_list,215,4225
+    _type_definition_part,216,4252
+    _unlabeled_statement,217,4279
+    _unpacked_structured_type,218,4305
+    _unsigned_constant,219,4336
+    _unsigned_integer,220,4360
+    _unsigned_integer_list,221,4383
+    _unsigned_number,222,4411
+    _unsigned_real,223,4433
+    _value_parameter,224,4453
+    _variable,225,4475
+    _variable_declaration,226,4490
+    _variable_declaration_list,227,4517
+    _variable_declaration_part,228,4549
+    _variable_list,229,4581
+    _variable_parameter,230,4601
+    _variant,231,4626
+    _variant_list,232,4640
+    _variant_part,233,4659
+    _while_statement,234,4678
+    _with_statement,235,4700
+  } nonterms;236,4721
+char *nonterm_names[nonterm_names239,4773
+char *toknames[toknames349,7124
+yyerror 373,8000
+Node *tree tree391,8395
+new_interior_node 402,8614
+new_epsilon 433,9264
+simple_unary_tree 444,9555
+cons 460,9944
+list_length 469,10104
+list2node 486,10445
+core_length 526,11497
+core2node 543,11904
+type 565,12418
+new_type_struct 573,12581
+types_compatible 584,12822
+get_operator 598,13109
+get_arity 604,13181
+Type *get_params(get_params614,13359
+#define MAX_PARAMS 624,13522
+Param params[params627,13584
+int params_size 630,13649
+clear_params 633,13677
+get_num_params 639,13720
+insert_param 646,13820
+function_procedure_type 657,14050
+SymTab *stab;stab695,15209
+  : start703,15353
+  : _INTEGERunsigned_integer733,16241
+  : unsigned_integer uunsigned_integer_list746,16641
+  : /* epsilon */unsigned_integer_list_tail754,16858
+  : _REALunsigned_real763,17030
+  : unsigned_intunsigned_number777,17470
+  : _sign782,17530
+  : _STstring789,17671
+  :id804,18084
+  : unsigned_numbeunsigned_constant821,18611
+  : sign unsigsigned_number834,18894
+  : sign idsigned_identifier842,19076
+  : unsigconstant850,19253
+  : constant cconstant_list863,19430
+  : /* epsilon */constant_list_tail871,19615
+  : id _EQ constantconstant_definition880,19763
+  : stype898,20217
+  : id _EQ typetype_definition907,20331
+  : scalar_tsimple_type927,20974
+  : _LPAREN scalar_type952,21744
+  : id idlist960,21921
+  : /* idtail969,22132
+  : constant _subrange_type980,22367
+  : unpacked_strstructured_type1033,24286
+  : _PACKED unpacked_stpacked_structured_type1040,24397
+  : array_typeunpacked_structured_type1048,24605
+  : _ARRAY array_type1061,24803
+  : simple_type ssimple_type_list1099,26149
+  : /* epsilon */simple_type_list_tail1107,26346
+  : _RECORD record_type1116,26536
+  : field_lfield_list1137,27523
+  : record_sectionfield_list_kernel1148,27783
+  : /* epsilon *field_list_tail1160,28027
+  : idlist _COLrecord_section1171,28266
+  : _CASE id variant_part1179,28449
+  : consvariant1187,28648
+  : variant vvariant_list1200,28991
+  : /* epsilon */variant_list_tail1208,29172
+  : _SET set_type1217,29351
+  : _FILE file_type1227,29560
+  : _POINTER pointer_type1237,29767
+  : idlist _COLON typvariable_declaration1247,30002
+  : entirvariable1282,31251
+  : variable vvariable_list1291,31383
+  : /* epsilon */variable_list_tail1299,31568
+  : id entire_variable1308,31751
+  : indexed_variablcomponent_variable1322,32182
+  : variable _LBRindexed_variable1331,32330
+  : variable _DOTfield_designator1341,32584
+  : variable _POINTEreferenced_variable1356,33007
+  : varfactor1366,33232
+  : set1384,33558
+  : tterm1397,33875
+  : simsimple1446,35517
+  : sexpr1491,37068
+  : expr eexpr_list1516,37905
+  : /* epsilon expr_list_tail1524,38074
+  : _Smulop1537,38337
+  : _Paddop1567,39071
+  : _Lrelop1587,39537
+  : id  _LPAREfunction_call1631,40655
+  : statement sstatement_list1654,41480
+  : /* epsilon */statement_list_tail1662,41669
+  : safe_sstatement1669,41814
+  : labeled_safsafe_statement1676,41903
+  : labeled_unsafunsafe_statement1683,42013
+  : unsigned_integer _Clabeled_safe_statement1690,42129
+  : unsigned_integer _COLlabeled_unsafe_statement1698,42352
+  : simple_statementunlabeled_safe_statement1706,42583
+  : unsafe_structured_stateunlabeled_unsafe_statement1713,42698
+  : assignment_stsimple_statement1720,42825
+  : variable _ASSIGN assignment_statement1738,43253
+  : idprocedure_call1750,43617
+  : _GOTO unsiggoto_statement1766,43998
+  :empty_statement1776,44230
+  : compound_statementsafe_structured_statement1786,44437
+  : unsafe_conditional_stateunsafe_structured_statement1797,44644
+  : _BEGIN statemencompound_statement1808,44862
+  : safe_if_then_else_statesafe_conditional_statement1815,44980
+  : if_then_statementunsafe_conditional_statement1822,45097
+  : _IF expr _THENif_then_statement1831,45267
+  : _IF expr _THEN safe_statsafe_if_then_else_statement1839,45467
+  : _IF expr _THEN safe_statemunsafe_if_then_else_statement1847,45707
+  : _CASE expr case_statement1858,45992
+  : constant_case_element1866,46193
+  : case_element ccase_element_list1874,46383
+  : /* epsilon */case_element_list_tail1882,46584
+  : safe_while_statementsafe_repetitive_statement1891,46782
+  : unsafe_while_statementunsafe_repetitive_statement1900,46933
+  : _WHILE expr _DO ssafe_while_statement1909,47093
+  : _WHILE expr _DO unsunsafe_while_statement1917,47294
+  : _REPEAT staterepeat_statement1927,47541
+  : _FOR id _ASSIGNsafe_for_statement1937,47782
+  : _FOR id _ASSIGN eunsafe_for_statement1946,48046
+  : _TOdirection1955,48314
+  : _WITH variable_lsafe_with_statement1970,48647
+  : _WITH variable_lisunsafe_with_statement1978,48856
+  : procedure_heading procedure_declaration1988,49111
+  : _PROCEDURE id procedure_heading2003,49523
+  : /* epsilon */formal_parameters2048,51201
+  : valuformals2055,51305
+  : formals fformals_list2066,51476
+  : /* epsilon */formals_list_tail2074,51657
+  : parameter_grvalue_parameter2081,51796
+  : _VAR parameter_variable_parameter2089,51973
+  : _FUNCTION paramfunction_parameter2097,52161
+  : _PROCEDURE idlisprocedure_parameter2105,52357
+  : idlist _COLOparameter_group2113,52544
+  :label_declaration_part2144,53520
+  :constant_definition_part2155,53776
+  : constant_definition _constant_definition_list2164,53904
+  : /* epsilon */constant_definition_list_tail2172,54175
+  :type_definition_part2178,54349
+  : type_definition _type_definition_list2185,54457
+  : /* epsilon */type_definition_list_tail2193,54681
+  :variable_declaration_part2200,54844
+  : variable_declaration _variable_declaration_list2208,54985
+  : /* epsilon */variable_declaration_list_tail2216,55229
+  : /* empty */procedure_declaration_list2223,55407
+  : /* epsilon */procedure_declaration_list_tail2233,55712
+  : procedure_declarationprocedure_or_function_declaration2240,55905
+  : function_heading function_declaration2249,56070
+  : _FUNCTION id function_heading2264,56479
+  : progprogram2274,56748
+  : /* epsilon *program_heading2290,57140
+
+symtab.o,0
+
+pascal.l,0
+
+notes.txt,0
+
+check-mem.o,0

@@ -13,22 +13,25 @@ const
   }
   
 { type }
+  {
 type
   newtype = integer;
- 
-
+  }
+   
 var
-  i: integer;
-  b: newtype;
+  i: integer; {
+    b: newtype;
   s: string;
   sub: 1..10;
-  a: array[1..10] of integer;
-
+  a: array[1..10] of integer; }
   
-procedure print_list(a: integer; b: integer);
-var 
-  i: integer;
+procedure print_list(a: integer; b: integer; cobalt: string);
+{ var 
+  i: integer;}
 begin
+  { i := 6;
+   b := 3;
+  cobalt := 'asdf'; 10;}
 end;
 
 (*
@@ -39,6 +42,7 @@ end;
 *)
 
 begin
-  s := 3;
+  i := 3 + 5;
+  {s := 3;}
   {  sub := 9;}
 end.

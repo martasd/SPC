@@ -80,7 +80,8 @@ typedef struct Type Type;
 typedef struct Param Param;
 /* Compound types. */
 typedef struct ArrayType ArrayType;
-typedef struct FunctionProcedureType FunctionProcedureType;
+typedef struct FunctionType FunctionType;
+typedef struct ProcedureType ProcedureType;
 typedef struct RecordType RecordType;
 typedef struct ScalarType ScalarType;
 typedef struct SubrangeType SubrangeType;
@@ -100,12 +101,19 @@ struct ArrayType
 };
 
 /* We need to store parameters with functions and procedures. If we are
- * dealing with a procedure, then we set return type to NULL.
+   dealing with a procedure, then we set return type to NULL
  */
 struct FunctionProcedureType
 {
   Param *params;
   Type *return_val;
+  int num_params;
+};
+
+/* We need to store parameters with a procedure. */
+struct ProcedureType
+{
+  Param *params;
   int num_params;
 };
 
@@ -133,7 +141,8 @@ struct Type
   union
   {
     ArrayType *array;
-    FunctionProcedureType *function_procedure;
+    FunctionType *function;
+    ProcedureType *procedure;
     RecordType *record;
     ScalarType *scalar;
     SubrangeType *subrange;
