@@ -1,0 +1,8 @@
+Assignment: Type Checking
+Goal: Build a type checker.
+Procedure: Add rules for processing types in pascal.y.
+
+Two components:
+1. Store new types in the symbol table (hash table).
+* the type name is the key; struct representing the type is the attribute
+2. Check the types of vars and functions when they are used.
