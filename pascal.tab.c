@@ -1175,9 +1175,9 @@ static const yytype_uint16 yyrline[] =
     1885,  1892,  1894,  1896,  1901,  1903,  1910,  1918,  1928,  1938,
     1947,  1956,  1961,  1971,  1979,  1989,  2004,  2050,  2051,  2056,
     2058,  2060,  2062,  2067,  2076,  2077,  2082,  2090,  2098,  2106,
-    2114,  2146,  2148,  2157,  2159,  2165,  2174,  2175,  2180,  2181,
-    2186,  2195,  2196,  2202,  2203,  2209,  2218,  2219,  2225,  2226,
-    2235,  2236,  2241,  2243,  2250,  2265,  2275,  2292,  2296,  2301
+    2114,  2148,  2150,  2159,  2161,  2167,  2176,  2177,  2182,  2183,
+    2188,  2197,  2198,  2204,  2205,  2211,  2220,  2221,  2227,  2228,
+    2237,  2238,  2243,  2245,  2252,  2267,  2277,  2294,  2298,  2303
 };
 #endif
 
@@ -4332,7 +4332,9 @@ TYPE_STRING};
 	char *id_name = get_s_attribute (id->attributes, "name");
 
         /* Get the type of $3 from symbol table and associate it with id. */
-        Type *type_struct = new_type_struct (type ((yyvsp[(3) - (3)])));
+        char *type_name = get_s_attribute ((yyvsp[(3) - (3)])->attributes, "name");
+        AttributeSet *set = symtab_get (stab, type_name);
+        Type *type_struct = get_p_attribute (set, "type");
 
         /* Place the name and type into the params array. */
 	insert_param (id_name, type_struct);
@@ -4346,14 +4348,14 @@ TYPE_STRING};
   case 191:
 
 /* Line 1455 of yacc.c  */
-#line 2146 "pascal.y"
+#line 2148 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 192:
 
 /* Line 1455 of yacc.c  */
-#line 2149 "pascal.y"
+#line 2151 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_label_declaration_part, attributes, 1, (yyvsp[(2) - (3)]));
@@ -4363,14 +4365,14 @@ TYPE_STRING};
   case 193:
 
 /* Line 1455 of yacc.c  */
-#line 2157 "pascal.y"
+#line 2159 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 194:
 
 /* Line 1455 of yacc.c  */
-#line 2160 "pascal.y"
+#line 2162 "pascal.y"
     {  
      (yyval) = (yyvsp[(2) - (2)]); ;}
     break;
@@ -4378,7 +4380,7 @@ TYPE_STRING};
   case 195:
 
 /* Line 1455 of yacc.c  */
-#line 2166 "pascal.y"
+#line 2168 "pascal.y"
     {
       printf ("in const def list\n");AttributeSet *attributes = new_attribute_set (0);
       (yyval) = list2node (_constant_definition_list, attributes, cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])));
@@ -4388,35 +4390,35 @@ TYPE_STRING};
   case 196:
 
 /* Line 1455 of yacc.c  */
-#line 2174 "pascal.y"
+#line 2176 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 197:
 
 /* Line 1455 of yacc.c  */
-#line 2176 "pascal.y"
+#line 2178 "pascal.y"
     { (yyval) = cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])); ;}
     break;
 
   case 198:
 
 /* Line 1455 of yacc.c  */
-#line 2180 "pascal.y"
+#line 2182 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 199:
 
 /* Line 1455 of yacc.c  */
-#line 2182 "pascal.y"
+#line 2184 "pascal.y"
     { (yyval) = (yyvsp[(2) - (2)]); ;}
     break;
 
   case 200:
 
 /* Line 1455 of yacc.c  */
-#line 2187 "pascal.y"
+#line 2189 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = list2node (_type_definition_list, attributes, cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])));
@@ -4426,28 +4428,28 @@ TYPE_STRING};
   case 201:
 
 /* Line 1455 of yacc.c  */
-#line 2195 "pascal.y"
+#line 2197 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 202:
 
 /* Line 1455 of yacc.c  */
-#line 2197 "pascal.y"
+#line 2199 "pascal.y"
     { (yyval) = cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])); ;}
     break;
 
   case 203:
 
 /* Line 1455 of yacc.c  */
-#line 2202 "pascal.y"
+#line 2204 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 204:
 
 /* Line 1455 of yacc.c  */
-#line 2204 "pascal.y"
+#line 2206 "pascal.y"
     { printf ("_VAR\n");
       (yyval) = (yyvsp[(2) - (2)]); ;}
     break;
@@ -4455,7 +4457,7 @@ TYPE_STRING};
   case 205:
 
 /* Line 1455 of yacc.c  */
-#line 2210 "pascal.y"
+#line 2212 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = list2node (_variable_declaration_list, attributes, cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])));
@@ -4465,28 +4467,28 @@ TYPE_STRING};
   case 206:
 
 /* Line 1455 of yacc.c  */
-#line 2218 "pascal.y"
+#line 2220 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 207:
 
 /* Line 1455 of yacc.c  */
-#line 2220 "pascal.y"
+#line 2222 "pascal.y"
     { (yyval) = cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])); ;}
     break;
 
   case 208:
 
 /* Line 1455 of yacc.c  */
-#line 2225 "pascal.y"
+#line 2227 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 209:
 
 /* Line 1455 of yacc.c  */
-#line 2227 "pascal.y"
+#line 2229 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = list2node (_procedure_declaration_list, attributes, cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])));
@@ -4496,35 +4498,35 @@ TYPE_STRING};
   case 210:
 
 /* Line 1455 of yacc.c  */
-#line 2235 "pascal.y"
+#line 2237 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 211:
 
 /* Line 1455 of yacc.c  */
-#line 2237 "pascal.y"
+#line 2239 "pascal.y"
     { (yyval) = cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])); ;}
     break;
 
   case 212:
 
 /* Line 1455 of yacc.c  */
-#line 2242 "pascal.y"
+#line 2244 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 213:
 
 /* Line 1455 of yacc.c  */
-#line 2244 "pascal.y"
+#line 2246 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 214:
 
 /* Line 1455 of yacc.c  */
-#line 2257 "pascal.y"
+#line 2259 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_function_declaration, attributes, 7,
@@ -4535,7 +4537,7 @@ TYPE_STRING};
   case 215:
 
 /* Line 1455 of yacc.c  */
-#line 2266 "pascal.y"
+#line 2268 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_function_heading, attributes, 3, (yyvsp[(2) - (8)]), (yyvsp[(4) - (8)]), (yyvsp[(7) - (8)]));
@@ -4545,7 +4547,7 @@ TYPE_STRING};
   case 216:
 
 /* Line 1455 of yacc.c  */
-#line 2283 "pascal.y"
+#line 2285 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_program, attributes, 7,
@@ -4556,7 +4558,7 @@ TYPE_STRING};
   case 217:
 
 /* Line 1455 of yacc.c  */
-#line 2292 "pascal.y"
+#line 2294 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_program_heading, attributes, 0);
@@ -4566,7 +4568,7 @@ TYPE_STRING};
   case 218:
 
 /* Line 1455 of yacc.c  */
-#line 2297 "pascal.y"
+#line 2299 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_program_heading, attributes, 1, (yyvsp[(2) - (3)]));
@@ -4576,7 +4578,7 @@ TYPE_STRING};
   case 219:
 
 /* Line 1455 of yacc.c  */
-#line 2302 "pascal.y"
+#line 2304 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_program_heading, attributes, 2, (yyvsp[(2) - (6)]), (yyvsp[(4) - (6)]));
@@ -4586,7 +4588,7 @@ TYPE_STRING};
 
 
 /* Line 1455 of yacc.c  */
-#line 4590 "pascal.tab.c"
+#line 4592 "pascal.tab.c"
       default: break;
     }
   YY_SYMBOL_PRINT ("-> $$ =", yyr1[yyn], &yyval, &yyloc);
@@ -4798,7 +4800,7 @@ yyreturn:
 
 
 /* Line 1675 of yacc.c  */
-#line 2308 "pascal.y"
+#line 2310 "pascal.y"
 
 
 /* Our beautiful lexer. */
