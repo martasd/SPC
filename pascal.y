@@ -21,7 +21,7 @@
  *   Public License along with this program.  If not, see
  *   <http://www.gnu.org/licenses/>.
  */
-
+ 
 /* Headers that we rely upon. */
 %{
 #include <stdio.h>
