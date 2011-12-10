@@ -557,7 +557,9 @@ core2node (int symbol, AttributeSet *attributes, Node *core)
 } // core2node
 
  
-/* Helper procedures for type checking. */
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//  Helper procedures for type checking.
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
  
 /* Returns the type of a terminal or nonterminal. */
@@ -624,40 +626,46 @@ stop_here (void)
 {
 }
  
-/* Handling Parameters in procedures and functions. */
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//  Keeping track of formal parameters in functions and procedures
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-
+ 
 // Maximum number of parameters in a function or procedure
-#define MAX_PARAMS 128
+/#define MAX_PARAMS 128
 
 // Store parameters in a global array
 Param params[MAX_PARAMS];
 
 // Initially, there are no parameters
-int params_size = 0;
+int num_params = 0;
 
 void 
 clear_params ()
 {
- params_size = 0;
+ num_params = 0;
 }
 
 int
 get_num_params ()
 {
- return params_size;
+ return num_params;
 }
 
 // Store the next parameter in the array of params
 void
 insert_param (char *name, Type *type)
 {
- params[params_size].name = name;
- params[params_size].type = type;
- params_size++;
+ params[num_params].name = name;
+ params[num_params].type = type;
+ num_params++;
 }
 
-/* Useful functions to avoid code duplication. */
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//  Other useful functions
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 
 /* Retrieve the type of the formal parameter at index i. */
 Type *
@@ -711,7 +719,130 @@ function_procedure_type (Type *return_type, int num_params)
   type_struct->info.function_procedure = func_proc_struct;
   return type_struct;
 }
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// Dealing with activation records
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+/* Do not allow nesting deeper than 128. */
+#define MAX_ACT_RECORDS 128
+#define MAX_TEMPS 1000
+ 
+/* The stack stack of activation records, which is equivalent to stack of hash tables
+ * in the symbol table. The stack stores the amount of memory that an activation
+ * record requires.
+ */
+int activation_records[MAX_ACT_RECORDS];
+ 
+/* Initially, there is no activation record. */
+int num_activation_records = 0;
+
+
+/* Temporaries. */
+/* A temporary can be an integer, a real, a char, or a string. */
+typedef union Temp
+{
+  int integer;
+  double real;
+  char character;
+  char *string;
+} Temp;
+
+
+/* An array to store temporaries. */
+Temp temps[MAX_TEMPS];
+
+int temps_capacity = MAX_TEMPS;
+int num_temps = 0;
+
+/* Create a new temporary */
+int
+new_temp (Temp temp)
+{
+  if (num_temps >= temps_capacity)
+    {
+      /* Double the array of temporaries and insert the next one. */
+      Temp new_temps[temps_capacity * 2];
+      /* If no more space available, then throw error. */
+      if (new_temps == NULL)
+        {
+          fprintf (stderr, "No more space can be allocated for temporararies~\n");
+          return 0;
+        }
+      
+      /* Copy the temporaries over. */
+      for (i = 0; i < num_temps; i++)
+        new_temps[i] = temps[i];
+
+      temps_capacity = temps_capacity * 2;
+    }
+
+  temps[num_temps] = temp;
+  num_temps++;
+  return 1;
+}
+
+/* Clear the array of temporaries once we do not need them anymore. */
+void
+clear_temps ()
+{
+  num_temps = 0;
+}
+
+ /* An array of temporary variables created by the compiler for the
+ * generation of three-address code
+/* Start a new activation record. */
+int
+ar_enter ()
+{
+  /* If too many act. records, then report an error. */
+  if (num_activation_records >= MAX_ACT_RECORDS)
+    {
+      fprintf (stderr, "Nesting of functions/procedures is too deep!\n");
+      fprintf (stderr, "Cannot allocate another activation record.\n");
+      return 0;
+    }
+
+  /* Initialize temporaries. */
+  clear_temps ();
   
+  num_activation_records++;
+
+  /* Allocate space for things present in every ar: 4 bytes for previous frame pointer and 4 bytes for return address. */
+  activation_records[num_activation_records-1] = 8;
+  return 1;
+} // ar_enter
+
+/* Exit from the current activation record. */
+int
+ar_exit ()
+{
+  /* If there are no activation records, then we cannot pop. */
+  if (num_activation_records == 0)
+    {
+      fprintf (stderr, "This is the only activation record, so cannot leave it!\n");
+      return 0;
+    }
+
+  num_activation_records--;
+  return 1;
+} // ar_exit
+
+/* Allocate amount of space in current activation record and return offset. */
+int
+ar_alloc (int amount)
+{
+  activation_records[num_activation_records-1] += amount;
+  return 1;
+} // ar_exit
+
+/* Determine how much space has been allocated in current activation record. */
+int
+ar_total ()
+{
+  return activation_records[num_activation_records-1];
+} // ar_total
+
 /* Declare the symbol table for the program. */
 SymTab *stab;
 %}

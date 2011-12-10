@@ -1,7 +1,6 @@
 { 
  A simple Pascal program to check our simple pascal compiler.
 }
-
 program simple;
 {
 label 34;
@@ -20,7 +19,7 @@ type
    
 var
   i: integer; {
-    b: newtype;
+  b: newtype;
   s: string;
   sub: 1..10;
   a: array[1..10] of integer; }
@@ -30,7 +29,6 @@ var
   i: integer;
 begin
    b := 5;
-   cobalt := 6;
 end;
 
 (*
