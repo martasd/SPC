@@ -26,12 +26,11 @@ var
   a: array[1..10] of integer; }
   
 procedure print_list(a: integer; b: integer; cobalt: string);
-{ var 
-  i: integer;}
+var 
+  i: integer;
 begin
-  { i := 6;
-   b := 3;
-  cobalt := 'asdf'; 10;}
+   b := 5;
+   cobalt := 6;
 end;
 
 (*

@@ -1,6 +1,6 @@
 /**
  * file:        pascal.y
- * description: A Pascal parser
+ * description: A simple Pascal parser
  * author:      Sam Rebelsky
  * modified by: Martin Dluhos
  * revised:     December 4, 2011
@@ -616,6 +616,13 @@ Type *get_params(Node *node)
  return 0;
 }
 
+/**
+ * A quick hack to support debugging.
+ */
+void 
+stop_here (void)
+{
+}
  
 /* Handling Parameters in procedures and functions. */
 
@@ -651,6 +658,20 @@ insert_param (char *name, Type *type)
 }
 
 /* Useful functions to avoid code duplication. */
+
+/* Retrieve the type of the formal parameter at index i. */
+Type *
+get_param_type (Type *type_struct, int i)
+{
+  return type_struct->info.function_procedure->params[i].type;
+}
+
+/* Retrieve the name of the formal parameter at index i. */
+char *
+get_param_name (Type *type_struct, int i)
+{
+  return type_struct->info.function_procedure->params[i].name;
+}
 
 /* Construct function and procedure type. */
 Type *
@@ -1308,6 +1329,7 @@ variable_list_tail
 entire_variable
   : id 
     {
+      stop_here ();
       char *id_name = get_s_attribute ($1->attributes, "name");
       AttributeSet *set = symtab_get (stab, id_name);
       Type *type = get_p_attribute (set, "type");
@@ -2003,8 +2025,9 @@ procedure_declaration
 procedure_heading
   : _PROCEDURE id _LPAREN formal_parameters _RPAREN _SEMICOLON
     {
-      Param param;
       int i;
+      Type *param_type;
+      char *param_name;
             
       /* Get the name of the id from its attributes. */ 
       char *id_name = get_s_attribute ($2->attributes, "name");
@@ -2031,12 +2054,17 @@ procedure_heading
         for (i = 0; i < num_params; i++)
         {
           /* Get the current param attributes. */
-          param = type_struct->info.function_procedure->params[i];
-          AttributeSet *param_attributes = new_attribute_set (1);
-          set_p_attribute (param_attributes, "type", param.type);
-          symtab_put (stab, param.name, param_attributes);
+	  param_type = get_param_type (type_struct, i);
+	  param_name = get_param_name (type_struct, i);
+	  AttributeSet *param_attributes = new_attribute_set (1);
+          set_p_attribute (param_attributes, "type", param_type);
+          symtab_put (stab, param_name, param_attributes);
+
         }
       }
+
+      /* Clear the array of parameters. */
+      clear_params ();
 
       /* Associate attributes with the node. */
       AttributeSet *node_attributes = new_attribute_set (1);
@@ -2113,12 +2141,13 @@ procedure_parameter
 parameter_group
   : idlist _COLON id
     {
-      int i;
+      int i, len;
+      Node *id;
+      char *id_name;
+      Type *type_struct;
+
       /* Determine how many ids to process. */
       int num_ids = get_arity ($1);
-
-      /* Clear the array of params. */
-      clear_params();
 
       /* Store parameters in a global array params. */
       /* Put each id with its corresponding type in the symbol table. */
@@ -2126,13 +2155,16 @@ parameter_group
       {
         /* Same as in variable_declaration- make it into a FUNCTION! */
         /* Get the name of the id from its attributes. */
-	Node *id = get_child ($1, i);
-	char *id_name = get_s_attribute (id->attributes, "name");
+	id = get_child ($1, i);
+	len = strlen (get_s_attribute (id->attributes, "name"));
+	id_name = malloc (sizeof (char) * len);
+	id_name = get_s_attribute (id->attributes, "name");
 
         /* Get the type of $3 from symbol table and associate it with id. */
         char *type_name = get_s_attribute ($3->attributes, "name");
         AttributeSet *set = symtab_get (stab, type_name);
-        Type *type_struct = get_p_attribute (set, "type");
+	type_struct = malloc (sizeof (struct Type));
+	type_struct = get_p_attribute (set, "type");
 
         /* Place the name and type into the params array. */
 	insert_param (id_name, type_struct);
