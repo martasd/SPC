@@ -606,7 +606,6 @@ get_arity (Node *node)
   if (! is_nnode (node))
     return 0;
   NNode *nn = (NNode *) node;
-  printf ("hey arity %d\n", nn->arity);
   return nn->arity;
 } // get_arity
 
@@ -989,7 +988,7 @@ idlist
 
 idtail
   : /* epsilon */
-    { printf ("epsilon in tail\n"); $$ = new_epsilon (); }
+    { $$ = new_epsilon (); }
   | _COMMA id idtail
     { $$ = cons ($2, $3); }
   ;
@@ -1272,7 +1271,6 @@ variable_declaration
       /* Determine how many ids to process. */
       int num_ids = get_arity ($1);
       
-      printf ("ids: %d\n", num_ids);
       /* Put each id with its corresponding type in the symbol table. */
       for (i = 0; i < num_ids; i++)
       {                                                                              
@@ -1433,7 +1431,7 @@ term
        case (_DIV):
          if (types_compatible ($1, $3) == 0)
            fprintf (stderr, "Incompatible types in expression!\n");
-         if (type ($1) != TYPE_INTEGER || type($1) != TYPE_REAL)
+         if (type ($1) != TYPE_INTEGER && type($1) != TYPE_REAL)
            fprintf (stderr, "Operands have incorrect type in expression.\n");
         break;
        case (_MOD):
@@ -1476,6 +1474,7 @@ simple
        * If types are inappropriate, throw an appropriate error.
        */
       if ((operator == _PLUS) || (operator == _DASH))
+
       {
         if (types_compatible ($1, $3) == 0)
           fprintf (stderr, "Incompatible types in expression!\n");
@@ -1518,7 +1517,7 @@ expr
        */
       if (types_compatible ($1, $3) == 0)
         fprintf (stderr,"Incompatible types in expression!\n"); 
-      if (type ($1) != TYPE_INTEGER || type($1) != TYPE_REAL)
+      if (type ($1) != TYPE_INTEGER && type($1) != TYPE_REAL)
         fprintf (stderr, "Operands have incorrect type in expression.\n");
 
       /* Otherwise the types are compatible, so construct the node. */
@@ -2235,8 +2234,7 @@ variable_declaration_part
   :
     { $$ = new_epsilon (); }
   | _VAR variable_declaration_list
-    { printf ("_VAR\n");
-      $$ = $2; }
+    { $$ = $2; }
   ;
 
 variable_declaration_list

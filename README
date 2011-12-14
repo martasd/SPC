@@ -1,60 +1,15 @@
+/*****************************************************************************
+ * file:        README
+ * authors:     Sam Rebelsky, Martin Dluhos
+ * created:     October 7, 2011
+ * revised:     December 14, 2011
+ * description: Documentation for a Simple Pascal Compiler
+ ****************************************************************************/
 
-This is a simple parser for Pascal that builds and prints out a parse tree.
+SPC: A simple compiler for Pascal that can build and print out a parse tree,
+perform type checking, and generate code in a general assembly language.
 
-In the parser generator file I replaced (or substituted these tokens in the
-following way:
+print-tree: Prints a parse tree of a simple Pascal program and reports if
+incompatible types are used in expressions.
 
-program-block => block
-program-parameter-list => identifier-list
-function-block => block
-statement-part => compound-statement
-component-type => type-denoter
-fixed-part => record-sections
-case-constant-list => consts
-field-list => fields
-tag-field => identifier
-tag-type => ordinal-type-identifier => type-identifier => identifier
-entire-variable => variable-identifier => identifier
-pointer-variable => variable-access
-array-variable => variable-access
-index-expr => expr
-type-identifier => identifier
-procedure-identifier => identifier
-procedural-parameter-specification => procedure-heading
-directive => identifier
-result-type => identifier
-function-identifier => identifier
-index-type => ordinal-type
-base-type => ordinal-type
-file-variable => variable-access
-boolean-expression => expression
-identified-variable => buffer-variable => variable-access _POINTER
-
-I renamed the following to have a more concise description:
-
-heading => head
-*-list => *s
-*)-part => *
-constant-definition-part => const_def_head AND const_defs
-type-definition-part => type_def_head AND type_defs
-variable-declaration-part => var_decl_head AND var_decls
-declaration => decl
-procedure-and-function-declaration-part => proc_and_func_decl AND proc_decls
-AND func_decls
-procedure => proc
-function => func
-identifier => _ID
-program-parameter-list => prog_params
-statement-sequence => statements
-formal-parameter-list => formal_params AND formal_param_sections
-conformant_array_schema => conform_array_schema
-( type-identifier  | conformant-array-schema ) => id_or_schema
-procedure-identification => proc_id
-new-ordinal-type => new_ord_type
-procedure-statement => procedure_statement AND parameters
-write-parameter-list => write_parameters_head
-writeln-parameter-list => writeln_parameters_head
-read-parameter-list => read_parameters_head
-readln-parameter-list => readln_parameters_head
-actual-parameter-list => actual_parameters_head
-
+pi: A Simple Pascal Interpreter which generates STAC and runs it.

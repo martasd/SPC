@@ -30,7 +30,7 @@ var
   i: integer;
 begin
    b := 5;
-   cobalt := 6;
+   cobalt := 'sdf';
 end;
 
 (*
