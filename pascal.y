@@ -3,7 +3,7 @@
  * description: A simple Pascal parser
  * author:      Sam Rebelsky
  * modified by: Martin Dluhos
- * revised:     December 4, 2011
+ * revised:     December 11, 2011
  *
  * Copyright (c) 2011 Samuel A. Rebelsky, All Rights Reserved
  *
@@ -31,6 +31,7 @@
 #include "attribute.h"
 #include "parse-tree.h"
 #include "symtab.h"
+#include "stac.h"
 %}
 
 /* Since we are building a parse tree, we want each element to have
@@ -72,6 +73,8 @@
 %token _NIL
 %token _OF
 %token _PACKED
+%token _WRITE
+%token _WRITELN
 %token _PROCEDURE
 %token _PROGRAM
 %token _RECORD
@@ -174,6 +177,7 @@ typedef enum nonterms
     _safe_statement,
     _mulop,
     _negate,
+    _output_statement,
     _packed_structured_type,
     _parameter_group,
     _pointer_type,
@@ -232,6 +236,7 @@ typedef enum nonterms
     _variant_list,
     _variant_part,
     _while_statement,
+    _write_parameter_list,
     _with_statement,
   } nonterms;
 
@@ -561,22 +566,58 @@ core2node (int symbol, AttributeSet *attributes, Node *core)
 //  Helper procedures for type checking.
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
- 
 /* Returns the type of a terminal or nonterminal. */
 TypeID
-type (Node *node)
+get_type_id (Node *node)
 {
- Type *type_struct = get_p_attribute (node->attributes, "type");
- return type_struct->type;
+ Type *type = get_p_attribute (node->attributes, "type");
+ return type->type_id;
 }
+
+/* Returns the amount of memory necessary to allocate for variable of type 
+ * type_id.
+ */
+int
+size_of_type (TypeID type_id)
+{
+  // THESE MAY NEED TO BE CHANGED!
+  switch (type_id)
+    {
+    case (TYPE_BOOLEAN):
+    case (TYPE_INTEGER):
+      return 4;
+    case (TYPE_REAL):
+      return 4;
+    case (TYPE_CHAR):
+      return 1;
+    case (TYPE_STRING):
+      return 4;
+    default:
+      fprintf (stderr, "Variable does not have a type!\n");
+      return 0;
+    }
+}
+
+/* void */
+/* create_type_att (TypeID type_id, AttributeSet attributes) */
+/* { */
+/*   Type *type = new_type (type_id); */
+/*   type->type_id = type_id;  */
+/*   switch (type_id) */
+/*     { */
+/*     case (TYPE_ARRAY): */
+/*       type->info.array = ; */
+/*     } */
+/*   set_p_attribute (attributes, "type", type); */
+/* } */
 
 /* Creates and returns a type struct. */
 Type *
-new_type_struct (TypeID type)
+new_type (TypeID type_id)
 {
-  struct Type *type_struct = malloc (sizeof (struct Type));
-  type_struct->type = type; 
-  return type_struct;
+  struct Type *type = malloc (sizeof (struct Type));
+  type->type_id = type_id; 
+  return type;
 }
 
 /* Checks if two variables have the same type. If so, return 1, otherwise
@@ -586,7 +627,7 @@ int
 types_compatible (Node *child0, Node *child1)
 {
   /* Return 1 if the children have the same type. */
-  if (type (child0) == type (child1))
+  if (get_type_id (child0) == get_type_id (child1))
     return 1;
   else 
     return 0; // Return zero if incompatible types. 
@@ -608,7 +649,6 @@ get_arity (Node *node)
   if (! is_nnode (node))
     return 0;
   NNode *nn = (NNode *) node;
-  printf ("hey arity %d\n", nn->arity);
   return nn->arity;
 } // get_arity
 
@@ -632,7 +672,7 @@ stop_here (void)
 
  
 // Maximum number of parameters in a function or procedure
-/#define MAX_PARAMS 128
+#define MAX_PARAMS 128
 
 // Store parameters in a global array
 Param params[MAX_PARAMS];
@@ -669,16 +709,16 @@ insert_param (char *name, Type *type)
 
 /* Retrieve the type of the formal parameter at index i. */
 Type *
-get_param_type (Type *type_struct, int i)
+get_param_type (Type *type, int i)
 {
-  return type_struct->info.function_procedure->params[i].type;
+  return type->info.function_procedure->params[i].type;
 }
 
 /* Retrieve the name of the formal parameter at index i. */
 char *
-get_param_name (Type *type_struct, int i)
+get_param_name (Type *type, int i)
 {
-  return type_struct->info.function_procedure->params[i].name;
+  return type->info.function_procedure->params[i].name;
 }
 
 /* Construct function and procedure type. */
@@ -686,7 +726,7 @@ Type *
 function_procedure_type (Type *return_type, int num_params)
 {
 
-  Type *type_struct;
+  Type *type;
   
   /* Allocate a struct for proc attributes. */
   struct FunctionProcedureType *func_proc_struct = 
@@ -710,14 +750,73 @@ function_procedure_type (Type *return_type, int num_params)
   /* Copy params from global array to proc->struct. */
   memcpy (func_proc_struct->params, params, params_memsize);
       
-  /* Construct a type_struct for function or procedure */
+  /* Construct a type for function or procedure */
   if (return_type ==NULL)
-    type_struct = new_type_struct (TYPE_PROCEDURE);
+    type = new_type (TYPE_PROCEDURE);
   else
-    type_struct = new_type_struct (TYPE_FUNCTION);
+    type = new_type (TYPE_FUNCTION);
     
-  type_struct->info.function_procedure = func_proc_struct;
-  return type_struct;
+  type->info.function_procedure = func_proc_struct;
+  return type;
+}
+
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// Dealing with temporary variables
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#define MAX_TEMPS 100
+
+/* A temporary can be an integer, a real, a char, or a string. */
+typedef union Temp
+{
+  int integer;
+  float real;
+  char character;
+  char *string;
+} Temp;
+
+/* An array to store temporaries for the generation of three-address code. */
+Temp temps[MAX_TEMPS];
+
+/* Keep track of size and capacity fo the temps array. */
+int temps_capacity = MAX_TEMPS;
+int num_temps = 0;
+
+/* Create a new temporary, add it to the array, and return its array index. */
+int
+new_temp ()
+{
+  int i, temp_index;
+
+  if (num_temps >= temps_capacity)
+    {
+      /* Double the array of temporaries and insert the next one. */
+      Temp new_temps[temps_capacity * 2];
+      /* If no more space available, then throw error. */
+      if (new_temps == NULL)
+        {
+          fprintf (stderr, "No more memory can be allocated for temporararies!\n");
+          return 0;
+        }
+      
+      /* Copy the temporaries over. */
+      for (i = 0; i < num_temps; i++)
+        new_temps[i] = temps[i];
+
+      temps_capacity = temps_capacity * 2;
+    }
+  
+  temp_index = num_temps - 1;
+  num_temps++;
+  return temp_index;
+}
+
+/* Clear the array of temporaries once we do not need them anymore. */
+void
+clear_temps ()
+{
+  num_temps = 0;
 }
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -726,7 +825,6 @@ function_procedure_type (Type *return_type, int num_params)
 
 /* Do not allow nesting deeper than 128. */
 #define MAX_ACT_RECORDS 128
-#define MAX_TEMPS 1000
  
 /* The stack stack of activation records, which is equivalent to stack of hash tables
  * in the symbol table. The stack stores the amount of memory that an activation
@@ -738,59 +836,6 @@ int activation_records[MAX_ACT_RECORDS];
 int num_activation_records = 0;
 
 
-/* Temporaries. */
-/* A temporary can be an integer, a real, a char, or a string. */
-typedef union Temp
-{
-  int integer;
-  double real;
-  char character;
-  char *string;
-} Temp;
-
-
-/* An array to store temporaries. */
-Temp temps[MAX_TEMPS];
-
-int temps_capacity = MAX_TEMPS;
-int num_temps = 0;
-
-/* Create a new temporary */
-int
-new_temp (Temp temp)
-{
-  if (num_temps >= temps_capacity)
-    {
-      /* Double the array of temporaries and insert the next one. */
-      Temp new_temps[temps_capacity * 2];
-      /* If no more space available, then throw error. */
-      if (new_temps == NULL)
-        {
-          fprintf (stderr, "No more space can be allocated for temporararies~\n");
-          return 0;
-        }
-      
-      /* Copy the temporaries over. */
-      for (i = 0; i < num_temps; i++)
-        new_temps[i] = temps[i];
-
-      temps_capacity = temps_capacity * 2;
-    }
-
-  temps[num_temps] = temp;
-  num_temps++;
-  return 1;
-}
-
-/* Clear the array of temporaries once we do not need them anymore. */
-void
-clear_temps ()
-{
-  num_temps = 0;
-}
-
- /* An array of temporary variables created by the compiler for the
- * generation of three-address code
 /* Start a new activation record. */
 int
 ar_enter ()
@@ -808,7 +853,8 @@ ar_enter ()
   
   num_activation_records++;
 
-  /* Allocate space for things present in every ar: 4 bytes for previous frame pointer and 4 bytes for return address. */
+  /* Allocate space for things present by default in every ar: 4 bytes for
+   * previous frame pointer and 4 bytes for return address. */
   activation_records[num_activation_records-1] = 8;
   return 1;
 } // ar_enter
@@ -832,9 +878,10 @@ ar_exit ()
 int
 ar_alloc (int amount)
 {
+  int offset = -activation_records[num_activation_records-1];
   activation_records[num_activation_records-1] += amount;
-  return 1;
-} // ar_exit
+  return offset;
+} // ar_alloc
 
 /* Determine how much space has been allocated in current activation record. */
 int
@@ -843,6 +890,71 @@ ar_total ()
   return activation_records[num_activation_records-1];
 } // ar_total
 
+/* Store activation record size in the symbol table. */
+int
+ar_store_size ()
+{
+  
+  return 1;
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// Functions related for generating instructions
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#define MAX_INSTRUCTIONS 1024
+
+/* A global array to hold generated instructions. Needs to be allocated. */
+Instruction *instructions;
+
+/* Keep track of size and capacity of the instructions array. */
+int max_instructions = MAX_INSTRUCTIONS;
+int num_instructions = 0;
+
+/* Add an instruction to the array of instructions. */
+int
+generate_instruction (OpCode opcode, StacParameter *param1, StacParameter *param2, StacParameter *param3)
+{
+  /* If the array is full, then double it. */
+  if (num_instructions >= max_instructions)
+    {
+      /* Double the space allocated for instructions array. */
+      Instruction *temp = 
+	realloc (instructions, sizeof (Instruction) * max_instructions * 2);
+
+      /* If no more memory can be allocated, then throw an error. */
+      if (temp == NULL)
+	{
+	  fprintf (stderr, "No more memory can be allocated for instructions!\n");
+	  return 0;
+	}
+
+      instructions = temp;
+      max_instructions = max_instructions * 2;
+    }
+  
+  /* Save the instruction into the array. */
+  build_instruction (&(instructions[num_instructions]), opcode, param1, param2, param3);
+  num_instructions++;
+  return 1;
+}
+
+
+
+/* Copied from pascal.y by Sam Rebelsky. */
+OpCode get_arithmetic_opcode (int operator, TypeID type_id);
+OpCode get_boolean_opcode (int operator, TypeID type_id);
+OpCode get_assignment_opcode (TypeID type_id);
+int is_arithmetic_operator (int operator);
+int is_boolean_operator (int operator);
+int is_assignment_operator (int operator);
+OpCode get_opcode (int operator, TypeID operand);
+StacParameter *translate_expr (int operator, Node *left, Node *right);
+
+void
+init_symtab ()
+{
+}
 /* Declare the symbol table for the program. */
 SymTab *stab;
 %}
@@ -856,24 +968,38 @@ start
   : 
     { 
       /* Create a new symbol table. */
-      stab = symtab_new (); 
+      stab = symtab_new ();
+
+      /* Start a new activation record. */
+      ar_enter ();
+
+      /* Allocate memory for instructions array */
+      instructions = (Instruction *) calloc (MAX_INSTRUCTIONS, sizeof
+      (Instruction));
+      
       int i;
-      /* Put all basic types in the symbol table. */
+      
+      /* Establish basic types. */
       char *type_names[]  = {"boolean", "integer", "real", "char", "string"};
       TypeID types[] = {TYPE_BOOLEAN, TYPE_INTEGER, TYPE_REAL, TYPE_CHAR,
 TYPE_STRING};
+
+      /* Put all basic types in the symbol table. */
       for (i = 0; i < 5; i++)
       {
-        Type *type_struct = new_type_struct (types[i]);
         AttributeSet *type_attributes = new_attribute_set (1);
-        set_p_attribute (type_attributes, "type", type_struct);
+      	Type *type = new_type (types[i]);       
+      	set_p_attribute (type_attributes, "type", type);
         symtab_put (stab, type_names[i], type_attributes);
       } 
 
       /* An array to store procedure/function parameters. */
     }
     program
-    { tree = $2; }
+    { 
+      tree = $2; 
+      generate_instruction (EXIT, new_iconstant (0), NULL, NULL);
+    }
   ;
 
 	/* The remaining parts of our grammar are in the same order
@@ -886,10 +1012,15 @@ unsigned_integer
   : _INTEGER
     {
       /* Set the type of the integer constant. */
-      AttributeSet *attributes = new_attribute_set (2);
-      Type *type_struct = new_type_struct (TYPE_INTEGER);
-      set_p_attribute (attributes, "type", type_struct);
-      set_i_attribute (attributes, "ivalue", atoi (yytext));
+      AttributeSet *attributes = new_attribute_set (3);
+      Type *type = new_type (TYPE_INTEGER);
+      set_p_attribute (attributes, "type", type);
+      int integer_value = atoi (yytext);
+      set_i_attribute (attributes, "ivalue", integer_value);
+
+      /* Store the address of the integer constant. */
+      set_p_attribute (attributes, "address", new_iconstant (integer_value));
+      
       Node *node = new_tnode (_INTEGER, attributes);
       $$ = node;
     }
@@ -915,12 +1046,16 @@ unsigned_integer_list_tail
 unsigned_real
   : _REAL
     {
-      /* Set the type and value of the real constant. */
-      AttributeSet *attributes = new_attribute_set (2);
-      struct Type *type_struct = malloc (sizeof (struct Type));
-      type_struct->type = TYPE_REAL;
-      set_p_attribute (attributes, "type", type_struct);
-      set_r_attribute (attributes, "rvalue", atof (yytext));
+      /* Store the type and value of the real constant in the parse tree. */
+      AttributeSet *attributes = new_attribute_set (3);
+      Type *type = new_type (TYPE_REAL);
+      set_p_attribute (attributes, "type", type);
+      float real_value = atof (yytext);
+      set_r_attribute (attributes, "rvalue", real_value);
+
+      /* Store the address of the real constant. */
+      set_p_attribute (attributes, "address", new_fconstant (real_value));
+
       Node *node = new_tnode (_REAL, attributes);
       $$ = node;
     }
@@ -942,10 +1077,15 @@ string
   : _STRING
     {
       /* Set the type of the string constant. */
-      AttributeSet *attributes = new_attribute_set (2);
-      Type *type_struct = new_type_struct (TYPE_STRING);
-      set_p_attribute (attributes, "type", type_struct);
-      set_s_attribute (attributes, "svalue", strdup (yytext));
+      AttributeSet *attributes = new_attribute_set (3);
+      Type *type = new_type (TYPE_STRING);
+      set_p_attribute (attributes, "type", type);
+      char *string_value = strdup (yytext);
+      set_s_attribute (attributes, "svalue", string_value);
+
+      /* Store the address of the string constant. */
+      set_p_attribute (attributes, "address", new_sconstant (string_value));
+      
       Node *node = new_tnode (_STRING, attributes);
       $$ = node;
     }
@@ -1032,15 +1172,13 @@ constant_list_tail
 constant_definition
   : id _EQ constant
     {
-      
-      /* Get the name of the id. */
-      //char *id_name = get_s_attribute ($1->attributes, "name");
-
       /* Put the new constant in the symbol table. */
       AttributeSet *attributes = new_attribute_set (1);
    
-      /* Retrieve the value of the constant. */
-
+      /* Generate code for constant definition. */
+      StacParameter *address = translate_expr (_EQ, $1, $3);
+      set_p_attribute (attributes, "address", address);
+      
       $$ = new_interior_node (_constant_definition, attributes, 2, $1, $3);
     }
   ;
@@ -1063,10 +1201,10 @@ type_definition
       char *id_name = get_s_attribute ($1->attributes, "name");
 
       /* Put the new type in the symbol table. */
-      TypeID alias_type = type ($3);
-      Type *type_struct = new_type_struct (alias_type);
+      TypeID alias_type = get_type_id ($3);
+      Type *type = new_type (alias_type);
       AttributeSet *type_attributes = new_attribute_set (1);
-      set_p_attribute (type_attributes, "type", type_struct);
+      set_p_attribute (type_attributes, "type", type);
       symtab_put (stab, id_name, type_attributes);
       
       AttributeSet *attributes = new_attribute_set (0);
@@ -1087,14 +1225,13 @@ simple_type
       char *id_name = get_s_attribute ($1->attributes, "name");
 
       /* Create a new type struct. */
-      struct Type *type_struct = malloc (sizeof (struct Type));
       AttributeSet *id_attributes = symtab_get (stab, id_name);
-      type_struct = get_p_attribute (id_attributes, "type");
-      if (type_struct == NULL)
+      Type *type = get_p_attribute (id_attributes, "type");
+      if (type == NULL)
         fprintf (stderr, "Not a valid type name.\n");
 
       AttributeSet *attributes = new_attribute_set (1);
-      set_p_attribute (attributes, "type", type_struct);
+      set_p_attribute (attributes, "type", type);
       $$ = new_interior_node (_simple_type, attributes, 1, $1);
     }
   ;
@@ -1112,7 +1249,6 @@ scalar_type
 idlist
   : id idtail
     { 
-      /* Associate a type with each id in idlist. */ 
       AttributeSet *attributes = new_attribute_set (0);
       $$ = list2node (_idlist, attributes, cons ($1, $2));
     }
@@ -1120,7 +1256,7 @@ idlist
 
 idtail
   : /* epsilon */
-    { printf ("epsilon in tail\n"); $$ = new_epsilon (); }
+    { $$ = new_epsilon (); }
   | _COMMA id idtail
     { $$ = cons ($2, $3); }
   ;
@@ -1132,7 +1268,7 @@ idtail
 subrange_type
   : constant _ELLIPSES constant
     {
-      /* Create a type_struct for the subrange type. */
+      /* Create a type for the subrange type. */
       struct SubrangeType *subrange_struct = 
                                    malloc (sizeof (struct SubrangeType));
 
@@ -1143,39 +1279,39 @@ subrange_type
 
       printf ("in subrange\n");
       /* Types are compatible, so assign the type to subrange. */
-      Type *const_type_struct = get_p_attribute ($1->attributes, "type");
-      subrange_struct->type = const_type_struct;
+      Type *const_type = get_p_attribute ($1->attributes, "type");
+      subrange_struct->type = const_type;
 
       /* Retrieve the constant values based on the type. */
       Attribute lower;
       Attribute upper;
 
-      switch (const_type_struct->type)
-      {
-       case (TYPE_INTEGER):
-         lower.ival = get_i_attribute ($1->attributes, "ivalue");
-         upper.ival = get_i_attribute ($3->attributes, "ivalue");
-         break;
-       case (TYPE_REAL):
-         lower.dval = get_r_attribute ($1->attributes, "rvalue");
-         upper.dval = get_r_attribute ($3->attributes, "rvalue");
-         break;
-       case (TYPE_STRING):
-         lower.sval = get_s_attribute ($1->attributes, "svalue");
-         upper.sval = get_s_attribute ($3->attributes, "svalue");
-         break;
-       default:
-         fprintf (stderr, "Constant has the wrong type!\n");
-      }
+      switch (const_type->type_id)
+	{
+	case (TYPE_INTEGER):
+	  lower.ival = get_i_attribute ($1->attributes, "ivalue");
+	  upper.ival = get_i_attribute ($3->attributes, "ivalue");
+	  break;
+	case (TYPE_REAL):
+	  lower.dval = get_r_attribute ($1->attributes, "rvalue");
+	  upper.dval = get_r_attribute ($3->attributes, "rvalue");
+	  break;
+	case (TYPE_STRING):
+	  lower.sval = get_s_attribute ($1->attributes, "svalue");
+	  upper.sval = get_s_attribute ($3->attributes, "svalue");
+	  break;
+	default:
+	  fprintf (stderr, "Constant has the wrong type!\n");
+	}
        
       subrange_struct->lower = lower;
       subrange_struct->upper = upper;
 
       /* Store the subrange attributes with the node. */
       AttributeSet *subrange_attributes = new_attribute_set (1);
-      Type *type_struct = new_type_struct (TYPE_SUBRANGE);
-      type_struct->info.subrange = subrange_struct;
-      set_p_attribute (subrange_attributes, "type", type_struct);
+      Type *type = new_type (TYPE_SUBRANGE);
+      type->info.subrange = subrange_struct;
+      set_p_attribute (subrange_attributes, "type", type);
       $$ = new_interior_node (_subrange_type, subrange_attributes, 2, $1, $3);
     }
   ;
@@ -1215,7 +1351,7 @@ array_type
     {
       int i;
 
-      /* Create a type_struct for the array type. */
+      /* Create a type for the array type. */
       struct ArrayType *array_struct = malloc (sizeof (struct ArrayType));
 
       /* Get the component type. */
@@ -1241,9 +1377,9 @@ array_type
 
       /* Store the array attributes with the node. */
       AttributeSet *array_attributes = new_attribute_set (1);
-      Type *type_struct = new_type_struct (TYPE_ARRAY);
-      type_struct->info.array = array_struct;
-      set_p_attribute (array_attributes, "type", type_struct);
+      Type *type = new_type (TYPE_ARRAY);
+      type->info.array = array_struct;
+      set_p_attribute (array_attributes, "type", type);
       $$ = new_interior_node (_array_type, array_attributes, 2, $3, $6);
     }
   ;
@@ -1400,10 +1536,10 @@ variable_declaration
   : idlist _COLON type
     {
       int i;
+   
       /* Determine how many ids to process. */
       int num_ids = get_arity ($1);
       
-      printf ("ids: %d\n", num_ids);
       /* Put each id with its corresponding type in the symbol table. */
       for (i = 0; i < num_ids; i++)
       {                                                                              
@@ -1412,9 +1548,16 @@ variable_declaration
         char *id_name = get_s_attribute (id->attributes, "name");
         
         /* Set the type. */
-        AttributeSet *sym_attributes = new_attribute_set (1);
-        Type *type_struct = new_type_struct (type ($3));
-        set_p_attribute (sym_attributes, "type", type_struct);
+        AttributeSet *sym_attributes = new_attribute_set (2);
+        TypeID type_id = get_type_id ($3);
+        Type *type = new_type (type_id);
+        set_p_attribute (sym_attributes, "type", type);
+
+	      /* Allocate memory for the variable based on its type 
+	       * and assign it a memory location. */
+        int offset = ar_alloc (size_of_type (type_id));
+	      StacParameter *address = new_relative (BP->info.r, offset);
+	      set_p_attribute (sym_attributes, "address", address);
 
         /* If symbol is already in scope, then throw an error. */
         if (symtab_is_in_scope (stab, id_name))
@@ -1461,11 +1604,23 @@ entire_variable
   : id 
     {
       stop_here ();
+      
+      /* Retrieve the id attributes from symbol table. */
       char *id_name = get_s_attribute ($1->attributes, "name");
       AttributeSet *set = symtab_get (stab, id_name);
+      if (set == NULL)
+      	fprintf (stderr, "%s is not declared!\n", id_name);
+      
+      /* Set the type. */
       Type *type = get_p_attribute (set, "type");
-      AttributeSet *attributes = new_attribute_set (1);
+      AttributeSet *attributes = new_attribute_set (2);
       set_p_attribute (attributes, "type", type);
+
+      /* Retrieve the address of id from the symbol table and store it in the
+       * parse tree. */
+      StacParameter *address = get_p_attribute (set, "address");
+      set_p_attribute (attributes, "address", address);
+
       $$ = new_interior_node (_entire_variable, attributes, 1, $1);
     }
   ;
@@ -1529,7 +1684,12 @@ factor
     { $$ = $2; }
   | _NOT factor
     {
-      AttributeSet *attributes = new_attribute_set (0);
+      AttributeSet *attributes = new_attribute_set (1);
+
+      /* A little bit of code. */
+      StacParameter *address = translate_expr (_NOT, NULL, $2);
+      set_p_attribute (attributes, "address", address);
+
       $$ = new_interior_node (_negate, attributes, 1, $2);
     }
   ;
@@ -1554,8 +1714,7 @@ term
       int operator = get_operator ($2);
 
       /* Determine which operation we are performing and thus determine
-       * allowed types.  
-       * If types are inappropriate, throw an appropriate error.
+       * allowed types. If types are inappropriate, throw an appropriate error.
        */
       switch (operator)
       {
@@ -1564,29 +1723,34 @@ term
        case (_DIV):
          if (types_compatible ($1, $3) == 0)
            fprintf (stderr, "Incompatible types in expression!\n");
-         if (type ($1) != TYPE_INTEGER || type($1) != TYPE_REAL)
+         if (get_type_id ($1) != TYPE_INTEGER && get_type_id ($1) != TYPE_REAL)
            fprintf (stderr, "Operands have incorrect type in expression.\n");
         break;
        case (_MOD):
          if (types_compatible ($1, $3) == 0)
            fprintf (stderr, "Incompatible types in expression!\n");
-         if (type ($1) != TYPE_INTEGER)
+         if (get_type_id ($1) != TYPE_INTEGER)
            fprintf (stderr, "Operands have incorrect type in expression.\n");
         break;
        case (_AND):
          if (types_compatible ($1, $3) == 0)
            fprintf (stderr, "Incompatible types in expression!\n");
-         if (type ($1) != TYPE_BOOLEAN)
+         if (get_type_id ($1) != TYPE_BOOLEAN)
            fprintf (stderr, "Operands have incorrect type in expression.\n");
        }
 
       /* Otherwise the types are compatible, so construct the node. */
-      AttributeSet *attributes = new_attribute_set (1);
-      Type *type_struct = new_type_struct (type ($3));
-      set_p_attribute (attributes, "type", type_struct);
+      AttributeSet *attributes = new_attribute_set (2);
+      TypeID type_id = get_type_id ($3);
+      Type *type = new_type (type_id);
+      set_p_attribute (attributes, "type", type);
 
-      /* We do not do operand conversion in this implementation, so just pass
-       * the children.
+      /* Generate some code. */
+      StacParameter *address = translate_expr (operator, $1, $3);
+      set_p_attribute (attributes, "address", address);
+
+      /* We do not perform operand type conversion in this implementation, 
+       * so just pass the children.
        */
       $$ = new_interior_node (_term, attributes, 3, $1, $2, $3);
     }
@@ -1610,7 +1774,7 @@ simple
       {
         if (types_compatible ($1, $3) == 0)
           fprintf (stderr, "Incompatible types in expression!\n");
-        if (type ($1) != TYPE_INTEGER && type($1) != TYPE_REAL)
+        if (get_type_id ($1) != TYPE_INTEGER && get_type_id ($1) != TYPE_REAL)
           fprintf (stderr, "Operands have incorrect type in expression.\n");
       }
       /* Otherwise, the operator is OR. */
@@ -1618,24 +1782,35 @@ simple
       {
         if (types_compatible ($1, $3) == 0)
           fprintf (stderr, "Incompatible types in expression!\n");
-        if (type ($1) != TYPE_BOOLEAN)
+        if (get_type_id ($1) != TYPE_BOOLEAN)
           fprintf (stderr, "Operands have incorrect type in expression.\n");
-      }
+      } // if
  
       /* Otherwise the types are compatible, so construct the node. */
-      AttributeSet *attributes = new_attribute_set (1);
-      Type *type_struct = new_type_struct (type ($3));
-      set_p_attribute (attributes, "type", type_struct);
+      AttributeSet *attributes = new_attribute_set (2);
+      Type *type = new_type (get_type_id ($3));
+      set_p_attribute (attributes, "type", type);
+      
+      /* Time to generate code. */
+      StacParameter *address = translate_expr (operator, $1, $3);
+      set_p_attribute (attributes, "address", address);
 
-      /* We do not do operand conversion in this implementation, so just pass
-       * the children.
+      /* We do not do operand type conversion in this implementation, 
+       * so just pass the children.
        */
       $$ = new_interior_node (_simple, attributes, 3, $1, $2, $3);
     }
   | addop term
-    {
-      AttributeSet *attributes = new_attribute_set (0);
-      $$ = new_interior_node (_simple, attributes, 2, $1, $2);
+  {
+    int operator = get_operator ($2);		
+
+    AttributeSet *attributes = new_attribute_set (1);
+        
+    /* Generate some exquisite code! */
+    StacParameter *address = translate_expr (operator, NULL, $2);
+    set_p_attribute (attributes, "address", address);
+
+    $$ = new_interior_node (_simple, attributes, 2, $1, $2);
     }
   | term
     { $$ = $1; }
@@ -1644,18 +1819,24 @@ simple
 expr
   : simple relop simple
     {
+      int operator = get_operator ($2);
+	
       /* If types are incompatible or inappropriate, throw an appropriate 
        * error. 
        */
       if (types_compatible ($1, $3) == 0)
         fprintf (stderr,"Incompatible types in expression!\n"); 
-      if (type ($1) != TYPE_INTEGER || type($1) != TYPE_REAL)
+      if (get_type_id ($1) != TYPE_INTEGER && get_type_id ($1) != TYPE_REAL)
         fprintf (stderr, "Operands have incorrect type in expression.\n");
 
       /* Otherwise the types are compatible, so construct the node. */
-      AttributeSet *attributes = new_attribute_set (1);
-      Type *type_struct = new_type_struct (type ($3));
-      set_p_attribute (attributes, "type", type_struct);
+      AttributeSet *attributes = new_attribute_set (2);
+      Type *type = new_type (get_type_id ($3));
+      set_p_attribute (attributes, "type", type);
+
+      /* Code generation! */
+      StacParameter *address = translate_expr (operator, $1, $3);
+      set_p_attribute (attributes, "address", address);
 
       /* We do not do operand conversion in this implementation, so just pass
        * the children.
@@ -1873,6 +2054,8 @@ unlabeled_unsafe_statement
 simple_statement
   : assignment_statement
     { $$ = $1; }
+  | output_statement
+    { $$ = $1; }
   | procedure_call
     { $$ = $1; }
   | goto_statement
@@ -1893,15 +2076,129 @@ assignment_statement
     {
       if (types_compatible ($1, $3) == 0)
         fprintf (stderr, "Expression has incompatible type in assignment!\n");
-      AttributeSet *attributes = new_attribute_set (0);
+      
+      /* Determine which instruction to use. */
+      OpCode opcode;
+      switch (get_type_id ($1))
+     	{
+       	case (TYPE_INTEGER):
+       	case (TYPE_BOOLEAN):
+       	  opcode = IMOV;
+       	  break;
+       	case (TYPE_REAL):
+       	  opcode = FMOV;
+       	  break;
+       	case (TYPE_CHAR):
+       	  opcode = CMOV;
+       	  break;
+       	case (TYPE_STRING):
+       	  opcode = SMOV;
+       	  break;
+       	default:
+       	  fprintf (stderr, "Assignment cannot be completed!\n");
+     	}
+     
+      /* Retrieve the address of the variable. */
+      StacParameter *var_address = get_p_attribute ($1->attributes, "address");
+
+      /* Retrieve the address of the expression. */
+      StacParameter *expr_address = get_p_attribute ($3->attributes, "address");
+
+      /* Generate code for assignment. */
+      generate_instruction (opcode, var_address, expr_address, NULL);
+
+      AttributeSet *attributes = new_attribute_set (0);	  
       $$ = new_interior_node (_assignment_statement, attributes, 2, $1, $3);
     }
+  ;
+
+        /* Added a section for Phase 5: The output statement */
+
+output_statement
+  : _WRITE _LPAREN write_parameter_list _RPAREN
+    {
+      int num_write_params = get_arity ($3);
+
+      int i; 
+      for (i = 0; i < num_write_params; i++)
+      {
+        Node *write_param = get_child ($3, i);
+
+        /* Determine which instruction to use. */
+        OpCode opcode;
+        switch (get_type_id (write_param))
+       	{
+         	case (TYPE_INTEGER):
+         	case (TYPE_BOOLEAN):
+         	  opcode = IWRITE;
+         	  break;
+         	case (TYPE_REAL):
+         	  opcode = FWRITE;
+         	  break;
+         	case (TYPE_CHAR):
+         	  opcode = CWRITE;
+         	  break;
+         	case (TYPE_STRING):
+         	  opcode = SWRITE;
+         	  break;
+         	default:
+    	      fprintf (stderr, "Unknown type of expression to output!\n");
+       	} // switch
+
+         StacParameter *param_address = 
+                       get_p_attribute (write_param->attributes, "address");
+
+         /* Generate the code! */
+         generate_instruction (opcode, param_address, NULL, NULL);
+      } // for
+
+      AttributeSet *attributes = new_attribute_set (0);	  
+      $$ = new_interior_node (_output_statement, attributes, 1, $3);
+    }
+  | _WRITELN _LPAREN write_parameter_list _RPAREN
+    {
+      int num_write_params = get_arity ($3);
+
+      int i; 
+      for (i = 0; i < num_write_params; i++)
+      {
+        Node *write_param = get_child ($3, i);
+
+        StacParameter *param_address = 
+                       get_p_attribute (write_param->attributes, "address");
+
+         /* Generate the code! */
+         generate_instruction (WRITELN, param_address, NULL, NULL);
+      } // for
+
+      AttributeSet *attributes = new_attribute_set (0);	  
+      $$ = new_interior_node (_output_statement, attributes, 1, $3);
+    }
+  ;
+
+write_parameter_list
+  : write_parameter write_parameter_list_tail
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      $$ = list2node (_write_parameter_list, attributes, cons ($1, $2));
+    }
+  ;
+
+write_parameter_list_tail
+  : /* epsilon */
+    { $$ = new_epsilon (); }
+  | _COMMA write_parameter write_parameter_list_tail
+    { $$ = cons ($2, $3);  }
+  ;
+     
+write_parameter
+  : expr
+    { $$ = $1; }
   ;
 
         /* Section 9.1.2. Procedure calls */
 
 procedure_call
-
   : id
     {
       AttributeSet *attributes = new_attribute_set (0);
@@ -2165,11 +2462,15 @@ procedure_heading
 
       /* Construct the procedure type. */
       int num_params = get_num_params ();
-      Type *type_struct = function_procedure_type (NULL, num_params);
+      Type *type = function_procedure_type (NULL, num_params);
 
       /* Store info about procedure's params. */
       AttributeSet *proc_attributes = new_attribute_set (1);
-      set_p_attribute (proc_attributes, "type", type_struct);
+      set_p_attribute (proc_attributes, "type", type);
+
+      /* Store the size that needs to be allocated for the procedure's ar. */
+      /* NEED TO FILL IN! */
+      // set_p_attribute (proc_attributes, "frame_size", ...
 
       /* If procedure is already in scope, then throw an error. */
       if (symtab_is_in_scope (stab, id_name))
@@ -2185,8 +2486,8 @@ procedure_heading
         for (i = 0; i < num_params; i++)
         {
           /* Get the current param attributes. */
-	  param_type = get_param_type (type_struct, i);
-	  param_name = get_param_name (type_struct, i);
+	  param_type = get_param_type (type, i);
+	  param_name = get_param_name (type, i);
 	  AttributeSet *param_attributes = new_attribute_set (1);
           set_p_attribute (param_attributes, "type", param_type);
           symtab_put (stab, param_name, param_attributes);
@@ -2199,7 +2500,7 @@ procedure_heading
 
       /* Associate attributes with the node. */
       AttributeSet *node_attributes = new_attribute_set (1);
-      set_p_attribute (node_attributes, "type", type_struct);
+      set_p_attribute (node_attributes, "type", type);
       $$ = new_interior_node (_procedure_heading, node_attributes, 2, $2, $4);
     }
   ;
@@ -2273,9 +2574,6 @@ parameter_group
   : idlist _COLON id
     {
       int i, len;
-      Node *id;
-      char *id_name;
-      Type *type_struct;
 
       /* Determine how many ids to process. */
       int num_ids = get_arity ($1);
@@ -2286,19 +2584,17 @@ parameter_group
       {
         /* Same as in variable_declaration- make it into a FUNCTION! */
         /* Get the name of the id from its attributes. */
-	id = get_child ($1, i);
+	Node *id = get_child ($1, i);
 	len = strlen (get_s_attribute (id->attributes, "name"));
-	id_name = malloc (sizeof (char) * len);
-	id_name = get_s_attribute (id->attributes, "name");
+	char *id_name = get_s_attribute (id->attributes, "name");
 
         /* Get the type of $3 from symbol table and associate it with id. */
         char *type_name = get_s_attribute ($3->attributes, "name");
         AttributeSet *set = symtab_get (stab, type_name);
-	type_struct = malloc (sizeof (struct Type));
-	type_struct = get_p_attribute (set, "type");
+	Type *type = get_p_attribute (set, "type");
 
         /* Place the name and type into the params array. */
-	insert_param (id_name, type_struct);
+	insert_param (id_name, type);
       }
 
       AttributeSet *attributes = new_attribute_set (0);
@@ -2366,8 +2662,7 @@ variable_declaration_part
   :
     { $$ = new_epsilon (); }
   | _VAR variable_declaration_list
-    { printf ("_VAR\n");
-      $$ = $2; }
+    { $$ = $2; }
   ;
 
 variable_declaration_list
@@ -2468,9 +2763,169 @@ program_heading
       AttributeSet *attributes = new_attribute_set (0);
       $$ = new_interior_node (_program_heading, attributes, 2, $2, $4);
     }
-  ;
+;
 
 %%
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// Dealing with operators and translation
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+/* Copied from pascal.y by Sam Rebelsky. */
+/* Retrieve opcode for arithmetic expression. */
+OpCode
+get_arithmetic_opcode (int operator, TypeID type_id)
+{
+  if (type_id == TYPE_INTEGER)
+    {
+      switch (operator)
+        {
+	case (_PLUS):
+	  return IADD;
+	case _DASH:
+	  return ISUB;
+	case _STAR:
+	  return IMUL;
+	case _SLASH:
+	  return IDIV;
+	case _DIV:
+	  return IDIV;
+	case _MOD:
+	  return IMOD;
+	default:
+	  return NOOP;
+        }
+    }
+  else if (type_id == TYPE_REAL)
+    {
+      switch (operator)
+        {
+	case _PLUS:
+	  return FADD;
+	case _DASH:
+	  return FSUB;
+	case _STAR:
+	  return FMUL;
+	case _SLASH:
+	  return FDIV;
+	default:
+	  return NOOP;
+        }
+    }
+  else
+    {
+      return NOOP;
+    } // other type
+}
+
+/* STUB. */
+/* Retrieve opcode for boolean expression. */
+OpCode
+get_boolean_opcode (int operator, TypeID type_id)
+{
+  //  OpCode opcode;
+  return NOOP;
+}
+
+/* Retrieve opcode for assignment expression. */
+OpCode
+get_assignment_opcode (TypeID type_id)
+{
+  switch (type_id)
+    {
+    case TYPE_INTEGER:
+      return IMOV;
+    case TYPE_REAL:
+      return FMOV;
+    case TYPE_CHAR:
+      return CMOV;
+    case TYPE_STRING:
+      return SMOV;
+    default:
+      return NOOP;
+    }
+}
+
+/* Check if it is an arithmetic operator. */
+int
+is_arithmetic_operator (int operator)
+{
+  if ((operator <= _AND) || (ADDOPS_END <= operator))
+    return 0;
+  else 
+    return 1;
+}
+
+/* MORE OPERATORS! */
+/* Check if it is a boolean operator. */
+int
+is_boolean_operator (int operator)
+{
+  if ((operator != _AND) && (operator != _OR))
+    return 0;
+  else
+    return 1;
+}
+
+/* Check if it is an assignment operator. */
+int
+is_assignment_operator (int operator)
+{
+  if ((operator != _ASSIGN) && (operator != _EQ))
+    return 0;
+  else 
+    return 1;
+}
+
+/* Retrieve opcode given an operator. */
+OpCode
+get_opcode (int operator, TypeID operand_type)
+{
+  OpCode opcode;
+
+  /* Determine what kind of operation we want. */
+  if (is_arithmetic_operator (operator))
+    opcode = get_arithmetic_opcode (operator, operand_type);
+  else if (is_boolean_operator (operator))
+    opcode = get_boolean_opcode (operator, operand_type);
+  else if (is_assignment_operator (operator))
+    opcode = get_assignment_opcode (operand_type);
+  else 
+    { /* If no opcode, then signal error. */
+      fprintf (stderr, "This operation is invalid.\n");
+      return NOOP;
+    }
+      
+  return opcode;
+}
+  
+/* Translate an expression into three-address code. YAY! */
+StacParameter *
+translate_expr (int operator, Node *left, Node *right)
+{
+  StacParameter *left_param;
+  StacParameter *right_param;
+  
+  TypeID operand_type = get_type_id (left);
+  OpCode opcode = get_opcode (operator, operand_type);
+
+  /* Get the address from left and right operands if they exist. */
+  if (left != NULL)
+    left_param = get_p_attribute (left->attributes, "address");
+  else
+    left_param = NULL;
+  if (right != NULL)
+    right_param = get_p_attribute (right->attributes, "address");
+  else
+    right_param = NULL;
+
+  /* Generate address for expression. */
+  int offset = ar_alloc (size_of_type (operand_type));
+  StacParameter *address = new_relative (BP->info.r, offset);
+  generate_instruction (opcode, address, left_param, right_param);
+
+  return address;
+}
 
 /* Our beautiful lexer. */
 #include "lex.yy.c"

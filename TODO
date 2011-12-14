@@ -1,0 +1,28 @@
+/*****************************************************************************
+ * file:        TODO
+ * authors:     Martin Dluhos
+ * created:     December 11, 2011
+ * revised:     December 14, 2011
+ * description: Keeps track of progress and maintains a list of features to
+ *              implement in the future.
+ ****************************************************************************/
+
+===Phase 7: Function/Procedure Calls===
+* not started
+
+===Phase 6: Control Structures===
+* not started
+
+===Phase 5: Simple Code Generation===
+* fix WRITELN
+
+===Phase 4: Type Checker===
+* type checking in functions
+
+==Phase 3: Symbol Table===
+* completed
+
+===Phase 2: Parsing===
+* complete (using Sam's version)
+
+

@@ -77,14 +77,15 @@
 #include "attribute.h"
 #include "parse-tree.h"
 #include "symtab.h"
+#include "stac.h"
 
 /* Line 189 of yacc.c  */
-#line 39 "pascal.y"
+#line 40 "pascal.y"
 
 #define YYSTYPE Node *
 
 /* Line 189 of yacc.c  */
-#line 127 "pascal.y"
+#line 130 "pascal.y"
 
 /* Nonterminals */
 typedef enum nonterms
@@ -135,6 +136,7 @@ typedef enum nonterms
     _safe_statement,
     _mulop,
     _negate,
+    _output_statement,
     _packed_structured_type,
     _parameter_group,
     _pointer_type,
@@ -193,6 +195,7 @@ typedef enum nonterms
     _variant_list,
     _variant_part,
     _while_statement,
+    _write_parameter_list,
     _with_statement,
   } nonterms;
 
@@ -522,22 +525,58 @@ core2node (int symbol, AttributeSet *attributes, Node *core)
 //  Helper procedures for type checking.
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
- 
 /* Returns the type of a terminal or nonterminal. */
 TypeID
-type (Node *node)
+get_type_id (Node *node)
 {
- Type *type_struct = get_p_attribute (node->attributes, "type");
- return type_struct->type;
+ Type *type = get_p_attribute (node->attributes, "type");
+ return type->type_id;
 }
+
+/* Returns the amount of memory necessary to allocate for variable of type 
+ * type_id.
+ */
+int
+size_of_type (TypeID type_id)
+{
+  // THESE MAY NEED TO BE CHANGED!
+  switch (type_id)
+    {
+    case (TYPE_BOOLEAN):
+    case (TYPE_INTEGER):
+      return 4;
+    case (TYPE_REAL):
+      return 4;
+    case (TYPE_CHAR):
+      return 1;
+    case (TYPE_STRING):
+      return 4;
+    default:
+      fprintf (stderr, "Variable does not have a type!\n");
+      return 0;
+    }
+}
+
+/* void */
+/* create_type_att (TypeID type_id, AttributeSet attributes) */
+/* { */
+/*   Type *type = new_type (type_id); */
+/*   type->type_id = type_id;  */
+/*   switch (type_id) */
+/*     { */
+/*     case (TYPE_ARRAY): */
+/*       type->info.array = ; */
+/*     } */
+/*   set_p_attribute (attributes, "type", type); */
+/* } */
 
 /* Creates and returns a type struct. */
 Type *
-new_type_struct (TypeID type)
+new_type (TypeID type_id)
 {
-  struct Type *type_struct = malloc (sizeof (struct Type));
-  type_struct->type = type; 
-  return type_struct;
+  struct Type *type = malloc (sizeof (struct Type));
+  type->type_id = type_id; 
+  return type;
 }
 
 /* Checks if two variables have the same type. If so, return 1, otherwise
@@ -547,7 +586,7 @@ int
 types_compatible (Node *child0, Node *child1)
 {
   /* Return 1 if the children have the same type. */
-  if (type (child0) == type (child1))
+  if (get_type_id (child0) == get_type_id (child1))
     return 1;
   else 
     return 0; // Return zero if incompatible types. 
@@ -569,7 +608,6 @@ get_arity (Node *node)
   if (! is_nnode (node))
     return 0;
   NNode *nn = (NNode *) node;
-  printf ("hey arity %d\n", nn->arity);
   return nn->arity;
 } // get_arity
 
@@ -588,7 +626,7 @@ stop_here (void)
 }
  
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//  Helper procedures for type checking.
+//  Keeping track of formal parameters in functions and procedures
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
  
@@ -599,43 +637,47 @@ stop_here (void)
 Param params[MAX_PARAMS];
 
 // Initially, there are no parameters
-int params_size = 0;
+int num_params = 0;
 
 void 
 clear_params ()
 {
- params_size = 0;
+ num_params = 0;
 }
 
 int
 get_num_params ()
 {
- return params_size;
+ return num_params;
 }
 
 // Store the next parameter in the array of params
 void
 insert_param (char *name, Type *type)
 {
- params[params_size].name = name;
- params[params_size].type = type;
- params_size++;
+ params[num_params].name = name;
+ params[num_params].type = type;
+ num_params++;
 }
 
-/* Useful functions to avoid code duplication. */
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//  Other useful functions
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 
 /* Retrieve the type of the formal parameter at index i. */
 Type *
-get_param_type (Type *type_struct, int i)
+get_param_type (Type *type, int i)
 {
-  return type_struct->info.function_procedure->params[i].type;
+  return type->info.function_procedure->params[i].type;
 }
 
 /* Retrieve the name of the formal parameter at index i. */
 char *
-get_param_name (Type *type_struct, int i)
+get_param_name (Type *type, int i)
 {
-  return type_struct->info.function_procedure->params[i].name;
+  return type->info.function_procedure->params[i].name;
 }
 
 /* Construct function and procedure type. */
@@ -643,7 +685,7 @@ Type *
 function_procedure_type (Type *return_type, int num_params)
 {
 
-  Type *type_struct;
+  Type *type;
   
   /* Allocate a struct for proc attributes. */
   struct FunctionProcedureType *func_proc_struct = 
@@ -667,22 +709,217 @@ function_procedure_type (Type *return_type, int num_params)
   /* Copy params from global array to proc->struct. */
   memcpy (func_proc_struct->params, params, params_memsize);
       
-  /* Construct a type_struct for function or procedure */
+  /* Construct a type for function or procedure */
   if (return_type ==NULL)
-    type_struct = new_type_struct (TYPE_PROCEDURE);
+    type = new_type (TYPE_PROCEDURE);
   else
-    type_struct = new_type_struct (TYPE_FUNCTION);
+    type = new_type (TYPE_FUNCTION);
     
-  type_struct->info.function_procedure = func_proc_struct;
-  return type_struct;
+  type->info.function_procedure = func_proc_struct;
+  return type;
 }
+
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// Dealing with temporary variables
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#define MAX_TEMPS 100
+
+/* A temporary can be an integer, a real, a char, or a string. */
+typedef union Temp
+{
+  int integer;
+  float real;
+  char character;
+  char *string;
+} Temp;
+
+/* An array to store temporaries for the generation of three-address code. */
+Temp temps[MAX_TEMPS];
+
+/* Keep track of size and capacity fo the temps array. */
+int temps_capacity = MAX_TEMPS;
+int num_temps = 0;
+
+/* Create a new temporary, add it to the array, and return its array index. */
+int
+new_temp ()
+{
+  int i, temp_index;
+
+  if (num_temps >= temps_capacity)
+    {
+      /* Double the array of temporaries and insert the next one. */
+      Temp new_temps[temps_capacity * 2];
+      /* If no more space available, then throw error. */
+      if (new_temps == NULL)
+        {
+          fprintf (stderr, "No more memory can be allocated for temporararies!\n");
+          return 0;
+        }
+      
+      /* Copy the temporaries over. */
+      for (i = 0; i < num_temps; i++)
+        new_temps[i] = temps[i];
+
+      temps_capacity = temps_capacity * 2;
+    }
   
+  temp_index = num_temps - 1;
+  num_temps++;
+  return temp_index;
+}
+
+/* Clear the array of temporaries once we do not need them anymore. */
+void
+clear_temps ()
+{
+  num_temps = 0;
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// Dealing with activation records
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+/* Do not allow nesting deeper than 128. */
+#define MAX_ACT_RECORDS 128
+ 
+/* The stack stack of activation records, which is equivalent to stack of hash tables
+ * in the symbol table. The stack stores the amount of memory that an activation
+ * record requires.
+ */
+int activation_records[MAX_ACT_RECORDS];
+ 
+/* Initially, there is no activation record. */
+int num_activation_records = 0;
+
+
+/* Start a new activation record. */
+int
+ar_enter ()
+{
+  /* If too many act. records, then report an error. */
+  if (num_activation_records >= MAX_ACT_RECORDS)
+    {
+      fprintf (stderr, "Nesting of functions/procedures is too deep!\n");
+      fprintf (stderr, "Cannot allocate another activation record.\n");
+      return 0;
+    }
+
+  /* Initialize temporaries. */
+  clear_temps ();
+  
+  num_activation_records++;
+
+  /* Allocate space for things present by default in every ar: 4 bytes for
+   * previous frame pointer and 4 bytes for return address. */
+  activation_records[num_activation_records-1] = 8;
+  return 1;
+} // ar_enter
+
+/* Exit from the current activation record. */
+int
+ar_exit ()
+{
+  /* If there are no activation records, then we cannot pop. */
+  if (num_activation_records == 0)
+    {
+      fprintf (stderr, "This is the only activation record, so cannot leave it!\n");
+      return 0;
+    }
+
+  num_activation_records--;
+  return 1;
+} // ar_exit
+
+/* Allocate amount of space in current activation record and return offset. */
+int
+ar_alloc (int amount)
+{
+  int offset = -activation_records[num_activation_records-1];
+  activation_records[num_activation_records-1] += amount;
+  return offset;
+} // ar_alloc
+
+/* Determine how much space has been allocated in current activation record. */
+int
+ar_total ()
+{
+  return activation_records[num_activation_records-1];
+} // ar_total
+
+/* Store activation record size in the symbol table. */
+int
+ar_store_size ()
+{
+  
+  return 1;
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// Functions related for generating instructions
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#define MAX_INSTRUCTIONS 1024
+
+/* A global array to hold generated instructions. Needs to be allocated. */
+Instruction *instructions;
+
+/* Keep track of size and capacity of the instructions array. */
+int max_instructions = MAX_INSTRUCTIONS;
+int num_instructions = 0;
+
+/* Add an instruction to the array of instructions. */
+int
+generate_instruction (OpCode opcode, StacParameter *param1, StacParameter *param2, StacParameter *param3)
+{
+  /* If the array is full, then double it. */
+  if (num_instructions >= max_instructions)
+    {
+      /* Double the space allocated for instructions array. */
+      Instruction *temp = 
+	realloc (instructions, sizeof (Instruction) * max_instructions * 2);
+
+      /* If no more memory can be allocated, then throw an error. */
+      if (temp == NULL)
+	{
+	  fprintf (stderr, "No more memory can be allocated for instructions!\n");
+	  return 0;
+	}
+
+      instructions = temp;
+      max_instructions = max_instructions * 2;
+    }
+  
+  /* Save the instruction into the array. */
+  build_instruction (&(instructions[num_instructions]), opcode, param1, param2, param3);
+  num_instructions++;
+  return 1;
+}
+
+
+
+/* Copied from pascal.y by Sam Rebelsky. */
+OpCode get_arithmetic_opcode (int operator, TypeID type_id);
+OpCode get_boolean_opcode (int operator, TypeID type_id);
+OpCode get_assignment_opcode (TypeID type_id);
+int is_arithmetic_operator (int operator);
+int is_boolean_operator (int operator);
+int is_assignment_operator (int operator);
+OpCode get_opcode (int operator, TypeID operand);
+StacParameter *translate_expr (int operator, Node *left, Node *right);
+
+void
+init_symtab ()
+{
+}
 /* Declare the symbol table for the program. */
 SymTab *stab;
 
 
 /* Line 189 of yacc.c  */
-#line 686 "pascal.tab.c"
+#line 923 "pascal.tab.c"
 
 /* Enabling traces.  */
 #ifndef YYDEBUG
@@ -740,57 +977,59 @@ SymTab *stab;
      _NIL = 286,
      _OF = 287,
      _PACKED = 288,
-     _PROCEDURE = 289,
-     _PROGRAM = 290,
-     _RECORD = 291,
-     _REPEAT = 292,
-     _SET = 293,
-     _THEN = 294,
-     _TO = 295,
-     _TRUE = 296,
-     _TYPE = 297,
-     _UNTIL = 298,
-     _VAR = 299,
-     _WHILE = 300,
-     _WITH = 301,
-     KEYWORDS_END = 302,
-     PUNCTUATION_START = 303,
-     _ASSIGN = 304,
-     _COLON = 305,
-     _COMMA = 306,
-     _ELLIPSES = 307,
-     _POINTER = 308,
-     _SEMICOLON = 309,
-     _LPAREN = 310,
-     _RPAREN = 311,
-     _LBRACKET = 312,
-     _RBRACKET = 313,
-     _DOT = 314,
-     PUNCTUATION_END = 315,
-     OPERATORS_START = 316,
-     _NOT = 317,
-     MULOPS_START = 318,
-     _AND = 319,
-     _DIV = 320,
-     _MOD = 321,
-     _SLASH = 322,
-     _STAR = 323,
-     MULOPS_END = 324,
-     ADDOPS_START = 325,
-     _DASH = 326,
-     _OR = 327,
-     _PLUS = 328,
-     ADDOPS_END = 329,
-     RELOPS_START = 330,
-     _EQ = 331,
-     _GE = 332,
-     _GT = 333,
-     _LE = 334,
-     _LT = 335,
-     _NE = 336,
-     RELOPS_END = 337,
-     OPERATORS_END = 338,
-     TOKENS_END = 339
+     _WRITE = 289,
+     _WRITELN = 290,
+     _PROCEDURE = 291,
+     _PROGRAM = 292,
+     _RECORD = 293,
+     _REPEAT = 294,
+     _SET = 295,
+     _THEN = 296,
+     _TO = 297,
+     _TRUE = 298,
+     _TYPE = 299,
+     _UNTIL = 300,
+     _VAR = 301,
+     _WHILE = 302,
+     _WITH = 303,
+     KEYWORDS_END = 304,
+     PUNCTUATION_START = 305,
+     _ASSIGN = 306,
+     _COLON = 307,
+     _COMMA = 308,
+     _ELLIPSES = 309,
+     _POINTER = 310,
+     _SEMICOLON = 311,
+     _LPAREN = 312,
+     _RPAREN = 313,
+     _LBRACKET = 314,
+     _RBRACKET = 315,
+     _DOT = 316,
+     PUNCTUATION_END = 317,
+     OPERATORS_START = 318,
+     _NOT = 319,
+     MULOPS_START = 320,
+     _AND = 321,
+     _DIV = 322,
+     _MOD = 323,
+     _SLASH = 324,
+     _STAR = 325,
+     MULOPS_END = 326,
+     ADDOPS_START = 327,
+     _DASH = 328,
+     _OR = 329,
+     _PLUS = 330,
+     ADDOPS_END = 331,
+     RELOPS_START = 332,
+     _EQ = 333,
+     _GE = 334,
+     _GT = 335,
+     _LE = 336,
+     _LT = 337,
+     _NE = 338,
+     RELOPS_END = 339,
+     OPERATORS_END = 340,
+     TOKENS_END = 341
    };
 #endif
 
@@ -808,7 +1047,7 @@ typedef int YYSTYPE;
 
 
 /* Line 264 of yacc.c  */
-#line 812 "pascal.tab.c"
+#line 1051 "pascal.tab.c"
 
 #ifdef short
 # undef short
@@ -1023,20 +1262,20 @@ union yyalloc
 /* YYFINAL -- State number of the termination state.  */
 #define YYFINAL  3
 /* YYLAST -- Last index in YYTABLE.  */
-#define YYLAST   602
+#define YYLAST   618
 
 /* YYNTOKENS -- Number of terminals.  */
-#define YYNTOKENS  85
+#define YYNTOKENS  87
 /* YYNNTS -- Number of nonterminals.  */
-#define YYNNTS  127
+#define YYNNTS  131
 /* YYNRULES -- Number of rules.  */
-#define YYNRULES  219
+#define YYNRULES  226
 /* YYNRULES -- Number of states.  */
-#define YYNSTATES  396
+#define YYNSTATES  411
 
 /* YYTRANSLATE(YYLEX) -- Bison symbol number corresponding to YYLEX.  */
 #define YYUNDEFTOK  2
-#define YYMAXUTOK   339
+#define YYMAXUTOK   341
 
 #define YYTRANSLATE(YYX)						\
   ((unsigned int) (YYX) <= YYMAXUTOK ? yytranslate[YYX] : YYUNDEFTOK)
@@ -1077,7 +1316,8 @@ static const yytype_uint8 yytranslate[] =
       45,    46,    47,    48,    49,    50,    51,    52,    53,    54,
       55,    56,    57,    58,    59,    60,    61,    62,    63,    64,
       65,    66,    67,    68,    69,    70,    71,    72,    73,    74,
-      75,    76,    77,    78,    79,    80,    81,    82,    83,    84
+      75,    76,    77,    78,    79,    80,    81,    82,    83,    84,
+      85,    86
 };
 
 #if YYDEBUG
@@ -1098,111 +1338,115 @@ static const yytype_uint16 yyprhs[] =
      267,   271,   273,   275,   277,   279,   281,   283,   285,   287,
      289,   291,   293,   295,   297,   299,   301,   305,   310,   313,
      314,   318,   320,   322,   324,   326,   328,   330,   334,   338,
-     340,   342,   344,   346,   348,   350,   352,   356,   358,   363,
-     366,   367,   369,   371,   373,   375,   377,   379,   381,   385,
-     387,   389,   391,   393,   398,   405,   412,   418,   422,   425,
-     426,   430,   432,   434,   436,   438,   440,   445,   450,   455,
-     464,   473,   475,   477,   482,   487,   495,   502,   503,   505,
-     507,   509,   511,   513,   516,   517,   521,   523,   526,   529,
-     532,   536,   537,   541,   542,   545,   549,   550,   554,   555,
-     558,   562,   563,   567,   568,   571,   575,   576,   580,   581,
-     585,   586,   590,   592,   594,   602,   611,   620,   621,   625
+     340,   342,   344,   346,   348,   350,   352,   354,   358,   363,
+     368,   371,   372,   376,   378,   380,   385,   388,   389,   391,
+     393,   395,   397,   399,   401,   403,   407,   409,   411,   413,
+     415,   420,   427,   434,   440,   444,   447,   448,   452,   454,
+     456,   458,   460,   462,   467,   472,   477,   486,   495,   497,
+     499,   504,   509,   517,   524,   525,   527,   529,   531,   533,
+     535,   538,   539,   543,   545,   548,   551,   554,   558,   559,
+     563,   564,   567,   571,   572,   576,   577,   580,   584,   585,
+     589,   590,   593,   597,   598,   602,   603,   607,   608,   612,
+     614,   616,   624,   633,   642,   643,   647
 };
 
 /* YYRHS -- A `-1'-separated list of the rules' RHS.  */
 static const yytype_int16 yyrhs[] =
 {
-      86,     0,    -1,    -1,    87,   210,    -1,     9,    -1,    88,
-      90,    -1,    -1,    51,    88,    90,    -1,    10,    -1,    88,
-      -1,    91,    -1,    73,    -1,    71,    -1,    11,    -1,     6,
-      -1,    92,    -1,    94,    -1,    31,    -1,    41,    -1,    23,
-      -1,    93,    92,    -1,    93,    95,    -1,    92,    -1,    97,
-      -1,    95,    -1,    98,    -1,    94,    -1,    99,   101,    -1,
-      -1,    51,    99,   101,    -1,    95,    76,    99,    -1,   105,
-      -1,   110,    -1,   127,    -1,    95,    76,   103,    -1,   106,
-      -1,   109,    -1,    95,    -1,    55,   107,    56,    -1,    95,
-     108,    -1,    -1,    51,    95,   108,    -1,    99,    52,    99,
-      -1,   112,    -1,   111,    -1,    33,   112,    -1,   113,    -1,
-     116,    -1,   125,    -1,   126,    -1,    14,    57,   114,    58,
-      32,   103,    -1,   105,   115,    -1,    -1,    51,   105,   115,
-      -1,    36,   117,    21,    -1,   118,    -1,   120,   119,    -1,
-     121,    -1,    -1,    54,   118,    -1,   107,    50,   103,    -1,
-      16,    95,    50,    95,    32,   123,    -1,   100,    50,    55,
-     117,    56,    -1,   100,    -1,   122,   124,    -1,    -1,    54,
-     122,   124,    -1,    38,    32,   105,    -1,    24,    32,   103,
-      -1,    53,    95,    -1,   107,    50,   103,    -1,   132,    -1,
-     133,    -1,   136,    -1,   129,   131,    -1,    -1,    51,   129,
-     131,    -1,    95,    -1,   134,    -1,   135,    -1,   129,    57,
-     142,    58,    -1,   129,    59,    95,    -1,   129,    53,    -1,
-     129,    -1,    96,    -1,   147,    -1,   138,    -1,    55,   141,
-      56,    -1,    62,   137,    -1,    57,   142,    58,    -1,    57,
-      58,    -1,   139,   144,   137,    -1,   137,    -1,   140,   145,
-     139,    -1,   145,   139,    -1,   139,    -1,   140,   146,   140,
-      -1,   140,    -1,   141,   143,    -1,    -1,    51,   141,   143,
-      -1,    68,    -1,    67,    -1,    65,    -1,    66,    -1,    64,
-      -1,    73,    -1,    71,    -1,    72,    -1,    80,    -1,    79,
-      -1,    76,    -1,    81,    -1,    77,    -1,    78,    -1,    29,
-      -1,    95,    55,    56,    -1,    95,    55,   142,    56,    -1,
-     150,   149,    -1,    -1,    54,   150,   149,    -1,   151,    -1,
-     152,    -1,   153,    -1,   155,    -1,   154,    -1,   156,    -1,
-      88,    50,   155,    -1,    88,    50,   156,    -1,   157,    -1,
-     162,    -1,   163,    -1,   158,    -1,   159,    -1,   160,    -1,
-     161,    -1,   129,    49,   141,    -1,    95,    -1,    95,    55,
-     142,    56,    -1,    27,    88,    -1,    -1,   164,    -1,   165,
-      -1,   174,    -1,   182,    -1,   166,    -1,   175,    -1,   183,
-      -1,    15,   148,    21,    -1,   168,    -1,   170,    -1,   167,
-      -1,   169,    -1,    28,   141,    39,   151,    -1,    28,   141,
-      39,   151,    20,   151,    -1,    28,   141,    39,   151,    20,
-     152,    -1,    16,   141,    32,   172,    21,    -1,   100,    50,
-     150,    -1,   171,   173,    -1,    -1,    54,   171,   173,    -1,
-     176,    -1,   178,    -1,   179,    -1,   177,    -1,   180,    -1,
-      45,   141,    18,   151,    -1,    45,   141,    18,   152,    -1,
-      37,   148,    43,   141,    -1,    25,    95,    49,   141,   181,
-     141,    18,   151,    -1,    25,    95,    49,   141,   181,   141,
-      18,   152,    -1,    40,    -1,    19,    -1,    46,   130,    18,
-     151,    -1,    46,   130,    18,   152,    -1,   185,   195,   196,
-     199,   202,   205,   164,    -1,    34,    95,    55,   186,    56,
-      54,    -1,    -1,   188,    -1,   190,    -1,   191,    -1,   192,
-      -1,   193,    -1,   187,   189,    -1,    -1,    54,   187,   189,
-      -1,   194,    -1,    44,   194,    -1,    26,   194,    -1,    34,
-     107,    -1,   107,    50,    95,    -1,    -1,    30,    89,    54,
-      -1,    -1,    17,   197,    -1,   102,    54,   198,    -1,    -1,
-     102,    54,   198,    -1,    -1,    42,   200,    -1,   104,    54,
-     201,    -1,    -1,   104,    54,   201,    -1,    -1,    44,   203,
-      -1,   128,    54,   204,    -1,    -1,   128,    54,   204,    -1,
-      -1,   207,    54,   206,    -1,    -1,   207,    54,   206,    -1,
-     184,    -1,   208,    -1,   209,   195,   196,   199,   202,   205,
-     164,    -1,    26,    95,    55,   186,    56,    50,    95,    54,
-      -1,   211,   195,   196,   199,   202,   205,   164,    59,    -1,
-      -1,    35,    95,    54,    -1,    35,    95,    55,   107,    56,
-      54,    -1
+      88,     0,    -1,    -1,    89,   216,    -1,     9,    -1,    90,
+      92,    -1,    -1,    53,    90,    92,    -1,    10,    -1,    90,
+      -1,    93,    -1,    75,    -1,    73,    -1,    11,    -1,     6,
+      -1,    94,    -1,    96,    -1,    31,    -1,    43,    -1,    23,
+      -1,    95,    94,    -1,    95,    97,    -1,    94,    -1,    99,
+      -1,    97,    -1,   100,    -1,    96,    -1,   101,   103,    -1,
+      -1,    53,   101,   103,    -1,    97,    78,   101,    -1,   107,
+      -1,   112,    -1,   129,    -1,    97,    78,   105,    -1,   108,
+      -1,   111,    -1,    97,    -1,    57,   109,    58,    -1,    97,
+     110,    -1,    -1,    53,    97,   110,    -1,   101,    54,   101,
+      -1,   114,    -1,   113,    -1,    33,   114,    -1,   115,    -1,
+     118,    -1,   127,    -1,   128,    -1,    14,    59,   116,    60,
+      32,   105,    -1,   107,   117,    -1,    -1,    53,   107,   117,
+      -1,    38,   119,    21,    -1,   120,    -1,   122,   121,    -1,
+     123,    -1,    -1,    56,   120,    -1,   109,    52,   105,    -1,
+      16,    97,    52,    97,    32,   125,    -1,   102,    52,    57,
+     119,    58,    -1,   102,    -1,   124,   126,    -1,    -1,    56,
+     124,   126,    -1,    40,    32,   107,    -1,    24,    32,   105,
+      -1,    55,    97,    -1,   109,    52,   105,    -1,   134,    -1,
+     135,    -1,   138,    -1,   131,   133,    -1,    -1,    53,   131,
+     133,    -1,    97,    -1,   136,    -1,   137,    -1,   131,    59,
+     144,    60,    -1,   131,    61,    97,    -1,   131,    55,    -1,
+     131,    -1,    98,    -1,   149,    -1,   140,    -1,    57,   143,
+      58,    -1,    64,   139,    -1,    59,   144,    60,    -1,    59,
+      60,    -1,   141,   146,   139,    -1,   139,    -1,   142,   147,
+     141,    -1,   147,   141,    -1,   141,    -1,   142,   148,   142,
+      -1,   142,    -1,   143,   145,    -1,    -1,    53,   143,   145,
+      -1,    70,    -1,    69,    -1,    67,    -1,    68,    -1,    66,
+      -1,    75,    -1,    73,    -1,    74,    -1,    82,    -1,    81,
+      -1,    78,    -1,    83,    -1,    79,    -1,    80,    -1,    29,
+      -1,    97,    57,    58,    -1,    97,    57,   144,    58,    -1,
+     152,   151,    -1,    -1,    56,   152,   151,    -1,   153,    -1,
+     154,    -1,   155,    -1,   157,    -1,   156,    -1,   158,    -1,
+      90,    52,   157,    -1,    90,    52,   158,    -1,   159,    -1,
+     168,    -1,   169,    -1,   160,    -1,   161,    -1,   165,    -1,
+     166,    -1,   167,    -1,   131,    51,   143,    -1,    34,    57,
+     162,    58,    -1,    35,    57,   162,    58,    -1,   164,   163,
+      -1,    -1,    53,   164,   163,    -1,   143,    -1,    97,    -1,
+      97,    57,   144,    58,    -1,    27,    90,    -1,    -1,   170,
+      -1,   171,    -1,   180,    -1,   188,    -1,   172,    -1,   181,
+      -1,   189,    -1,    15,   150,    21,    -1,   174,    -1,   176,
+      -1,   173,    -1,   175,    -1,    28,   143,    41,   153,    -1,
+      28,   143,    41,   153,    20,   153,    -1,    28,   143,    41,
+     153,    20,   154,    -1,    16,   143,    32,   178,    21,    -1,
+     102,    52,   152,    -1,   177,   179,    -1,    -1,    56,   177,
+     179,    -1,   182,    -1,   184,    -1,   185,    -1,   183,    -1,
+     186,    -1,    47,   143,    18,   153,    -1,    47,   143,    18,
+     154,    -1,    39,   150,    45,   143,    -1,    25,    97,    51,
+     143,   187,   143,    18,   153,    -1,    25,    97,    51,   143,
+     187,   143,    18,   154,    -1,    42,    -1,    19,    -1,    48,
+     132,    18,   153,    -1,    48,   132,    18,   154,    -1,   191,
+     201,   202,   205,   208,   211,   170,    -1,    36,    97,    57,
+     192,    58,    56,    -1,    -1,   194,    -1,   196,    -1,   197,
+      -1,   198,    -1,   199,    -1,   193,   195,    -1,    -1,    56,
+     193,   195,    -1,   200,    -1,    46,   200,    -1,    26,   200,
+      -1,    36,   109,    -1,   109,    52,    97,    -1,    -1,    30,
+      91,    56,    -1,    -1,    17,   203,    -1,   104,    56,   204,
+      -1,    -1,   104,    56,   204,    -1,    -1,    44,   206,    -1,
+     106,    56,   207,    -1,    -1,   106,    56,   207,    -1,    -1,
+      46,   209,    -1,   130,    56,   210,    -1,    -1,   130,    56,
+     210,    -1,    -1,   213,    56,   212,    -1,    -1,   213,    56,
+     212,    -1,   190,    -1,   214,    -1,   215,   201,   202,   205,
+     208,   211,   170,    -1,    26,    97,    57,   192,    58,    52,
+      97,    56,    -1,   217,   201,   202,   205,   208,   211,   170,
+      61,    -1,    -1,    37,    97,    56,    -1,    37,    97,    57,
+     109,    58,    56,    -1
 };
 
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint16 yyrline[] =
 {
-       0,   730,   730,   730,   759,   772,   781,   782,   789,   803,
-     804,   808,   810,   815,   830,   847,   849,   851,   853,   855,
-     860,   868,   876,   878,   880,   882,   884,   889,   898,   899,
-     906,   924,   926,   928,   933,   953,   955,   957,   978,   986,
-     996,   997,  1006,  1059,  1061,  1066,  1074,  1076,  1078,  1080,
-    1087,  1125,  1134,  1135,  1142,  1163,  1174,  1179,  1187,  1192,
-    1197,  1205,  1213,  1218,  1226,  1235,  1236,  1243,  1253,  1263,
-    1273,  1308,  1310,  1312,  1317,  1326,  1327,  1334,  1349,  1351,
-    1358,  1368,  1383,  1393,  1395,  1397,  1399,  1401,  1403,  1411,
-    1416,  1424,  1466,  1473,  1508,  1513,  1518,  1538,  1543,  1552,
-    1553,  1564,  1569,  1574,  1579,  1584,  1594,  1599,  1604,  1614,
-    1619,  1624,  1629,  1634,  1639,  1644,  1658,  1663,  1681,  1690,
-    1691,  1696,  1698,  1703,  1705,  1710,  1712,  1717,  1725,  1733,
-    1735,  1740,  1747,  1749,  1751,  1753,  1765,  1778,  1783,  1793,
-    1804,  1813,  1815,  1817,  1819,  1824,  1826,  1828,  1835,  1842,
-    1844,  1849,  1851,  1858,  1866,  1874,  1885,  1893,  1901,  1910,
-    1911,  1918,  1920,  1922,  1927,  1929,  1936,  1944,  1954,  1964,
-    1973,  1982,  1987,  1997,  2005,  2015,  2030,  2082,  2083,  2088,
-    2090,  2092,  2094,  2099,  2108,  2109,  2114,  2122,  2130,  2138,
-    2146,  2184,  2186,  2195,  2197,  2203,  2212,  2213,  2218,  2219,
-    2224,  2233,  2234,  2240,  2241,  2247,  2256,  2257,  2263,  2264,
-    2273,  2274,  2279,  2281,  2288,  2303,  2313,  2330,  2334,  2339
+       0,   969,   969,   969,  1012,  1030,  1039,  1040,  1047,  1065,
+    1066,  1070,  1072,  1077,  1097,  1114,  1116,  1118,  1120,  1122,
+    1127,  1135,  1143,  1145,  1147,  1149,  1151,  1156,  1165,  1166,
+    1173,  1189,  1191,  1193,  1198,  1218,  1220,  1222,  1242,  1250,
+    1259,  1260,  1269,  1322,  1324,  1329,  1337,  1339,  1341,  1343,
+    1350,  1388,  1397,  1398,  1405,  1426,  1437,  1442,  1450,  1455,
+    1460,  1468,  1476,  1481,  1489,  1498,  1499,  1506,  1516,  1526,
+    1536,  1578,  1580,  1582,  1587,  1596,  1597,  1604,  1631,  1633,
+    1640,  1650,  1665,  1675,  1677,  1679,  1681,  1683,  1685,  1698,
+    1703,  1711,  1757,  1764,  1803,  1815,  1820,  1846,  1851,  1860,
+    1861,  1872,  1877,  1882,  1887,  1892,  1902,  1907,  1912,  1922,
+    1927,  1932,  1937,  1942,  1947,  1952,  1966,  1971,  1989,  1998,
+    1999,  2004,  2006,  2011,  2013,  2018,  2020,  2025,  2033,  2041,
+    2043,  2048,  2055,  2057,  2059,  2061,  2063,  2075,  2118,  2158,
+    2180,  2189,  2190,  2195,  2202,  2207,  2217,  2228,  2237,  2239,
+    2241,  2243,  2248,  2250,  2252,  2259,  2266,  2268,  2273,  2275,
+    2282,  2290,  2298,  2309,  2317,  2325,  2334,  2335,  2342,  2344,
+    2346,  2351,  2353,  2360,  2368,  2378,  2388,  2397,  2406,  2411,
+    2421,  2429,  2439,  2454,  2510,  2511,  2516,  2518,  2520,  2522,
+    2527,  2536,  2537,  2542,  2550,  2558,  2566,  2574,  2607,  2609,
+    2618,  2620,  2626,  2635,  2636,  2641,  2642,  2647,  2656,  2657,
+    2663,  2664,  2669,  2678,  2679,  2685,  2686,  2695,  2696,  2701,
+    2703,  2710,  2725,  2735,  2752,  2756,  2761
 };
 #endif
 
@@ -1216,16 +1460,16 @@ static const char *const yytname[] =
   "_INTEGER", "_REAL", "_STRING", "CONSTANTS_END", "KEYWORDS_START",
   "_ARRAY", "_BEGIN", "_CASE", "_CONST", "_DO", "_DOWNTO", "_ELSE", "_END",
   "_EOL", "_FALSE", "_FILE", "_FOR", "_FUNCTION", "_GOTO", "_IF", "_IN",
-  "_LABEL", "_NIL", "_OF", "_PACKED", "_PROCEDURE", "_PROGRAM", "_RECORD",
-  "_REPEAT", "_SET", "_THEN", "_TO", "_TRUE", "_TYPE", "_UNTIL", "_VAR",
-  "_WHILE", "_WITH", "KEYWORDS_END", "PUNCTUATION_START", "_ASSIGN",
-  "_COLON", "_COMMA", "_ELLIPSES", "_POINTER", "_SEMICOLON", "_LPAREN",
-  "_RPAREN", "_LBRACKET", "_RBRACKET", "_DOT", "PUNCTUATION_END",
-  "OPERATORS_START", "_NOT", "MULOPS_START", "_AND", "_DIV", "_MOD",
-  "_SLASH", "_STAR", "MULOPS_END", "ADDOPS_START", "_DASH", "_OR", "_PLUS",
-  "ADDOPS_END", "RELOPS_START", "_EQ", "_GE", "_GT", "_LE", "_LT", "_NE",
-  "RELOPS_END", "OPERATORS_END", "TOKENS_END", "$accept", "start", "$@1",
-  "unsigned_integer", "unsigned_integer_list",
+  "_LABEL", "_NIL", "_OF", "_PACKED", "_WRITE", "_WRITELN", "_PROCEDURE",
+  "_PROGRAM", "_RECORD", "_REPEAT", "_SET", "_THEN", "_TO", "_TRUE",
+  "_TYPE", "_UNTIL", "_VAR", "_WHILE", "_WITH", "KEYWORDS_END",
+  "PUNCTUATION_START", "_ASSIGN", "_COLON", "_COMMA", "_ELLIPSES",
+  "_POINTER", "_SEMICOLON", "_LPAREN", "_RPAREN", "_LBRACKET", "_RBRACKET",
+  "_DOT", "PUNCTUATION_END", "OPERATORS_START", "_NOT", "MULOPS_START",
+  "_AND", "_DIV", "_MOD", "_SLASH", "_STAR", "MULOPS_END", "ADDOPS_START",
+  "_DASH", "_OR", "_PLUS", "ADDOPS_END", "RELOPS_START", "_EQ", "_GE",
+  "_GT", "_LE", "_LT", "_NE", "RELOPS_END", "OPERATORS_END", "TOKENS_END",
+  "$accept", "start", "$@1", "unsigned_integer", "unsigned_integer_list",
   "unsigned_integer_list_tail", "unsigned_real", "unsigned_number", "sign",
   "string", "id", "unsigned_constant", "signed_number",
   "signed_identifier", "constant", "constant_list", "constant_list_tail",
@@ -1243,28 +1487,29 @@ static const char *const yytname[] =
   "statement_list_tail", "statement", "safe_statement", "unsafe_statement",
   "labeled_safe_statement", "labeled_unsafe_statement",
   "unlabeled_safe_statement", "unlabeled_unsafe_statement",
-  "simple_statement", "assignment_statement", "procedure_call",
-  "goto_statement", "empty_statement", "safe_structured_statement",
-  "unsafe_structured_statement", "compound_statement",
-  "safe_conditional_statement", "unsafe_conditional_statement",
-  "if_then_statement", "safe_if_then_else_statement",
-  "unsafe_if_then_else_statement", "case_statement", "case_element",
-  "case_element_list", "case_element_list_tail",
-  "safe_repetitive_statement", "unsafe_repetitive_statement",
-  "safe_while_statement", "unsafe_while_statement", "repeat_statement",
-  "safe_for_statement", "unsafe_for_statement", "direction",
-  "safe_with_statement", "unsafe_with_statement", "procedure_declaration",
-  "procedure_heading", "formal_parameters", "formals", "formals_list",
-  "formals_list_tail", "value_parameter", "variable_parameter",
-  "function_parameter", "procedure_parameter", "parameter_group",
-  "label_declaration_part", "constant_definition_part",
-  "constant_definition_list", "constant_definition_list_tail",
-  "type_definition_part", "type_definition_list",
-  "type_definition_list_tail", "variable_declaration_part",
-  "variable_declaration_list", "variable_declaration_list_tail",
-  "procedure_declaration_list", "procedure_declaration_list_tail",
-  "procedure_or_function_declaration", "function_declaration",
-  "function_heading", "program", "program_heading", 0
+  "simple_statement", "assignment_statement", "output_statement",
+  "write_parameter_list", "write_parameter_list_tail", "write_parameter",
+  "procedure_call", "goto_statement", "empty_statement",
+  "safe_structured_statement", "unsafe_structured_statement",
+  "compound_statement", "safe_conditional_statement",
+  "unsafe_conditional_statement", "if_then_statement",
+  "safe_if_then_else_statement", "unsafe_if_then_else_statement",
+  "case_statement", "case_element", "case_element_list",
+  "case_element_list_tail", "safe_repetitive_statement",
+  "unsafe_repetitive_statement", "safe_while_statement",
+  "unsafe_while_statement", "repeat_statement", "safe_for_statement",
+  "unsafe_for_statement", "direction", "safe_with_statement",
+  "unsafe_with_statement", "procedure_declaration", "procedure_heading",
+  "formal_parameters", "formals", "formals_list", "formals_list_tail",
+  "value_parameter", "variable_parameter", "function_parameter",
+  "procedure_parameter", "parameter_group", "label_declaration_part",
+  "constant_definition_part", "constant_definition_list",
+  "constant_definition_list_tail", "type_definition_part",
+  "type_definition_list", "type_definition_list_tail",
+  "variable_declaration_part", "variable_declaration_list",
+  "variable_declaration_list_tail", "procedure_declaration_list",
+  "procedure_declaration_list_tail", "procedure_or_function_declaration",
+  "function_declaration", "function_heading", "program", "program_heading", 0
 };
 #endif
 
@@ -1281,35 +1526,36 @@ static const yytype_uint16 yytoknum[] =
      305,   306,   307,   308,   309,   310,   311,   312,   313,   314,
      315,   316,   317,   318,   319,   320,   321,   322,   323,   324,
      325,   326,   327,   328,   329,   330,   331,   332,   333,   334,
-     335,   336,   337,   338,   339
+     335,   336,   337,   338,   339,   340,   341
 };
 # endif
 
 /* YYR1[YYN] -- Symbol number of symbol that rule YYN derives.  */
 static const yytype_uint8 yyr1[] =
 {
-       0,    85,    87,    86,    88,    89,    90,    90,    91,    92,
-      92,    93,    93,    94,    95,    96,    96,    96,    96,    96,
-      97,    98,    99,    99,    99,    99,    99,   100,   101,   101,
-     102,   103,   103,   103,   104,   105,   105,   105,   106,   107,
-     108,   108,   109,   110,   110,   111,   112,   112,   112,   112,
-     113,   114,   115,   115,   116,   117,   118,   118,   119,   119,
-     120,   121,   122,   122,   123,   124,   124,   125,   126,   127,
-     128,   129,   129,   129,   130,   131,   131,   132,   133,   133,
-     134,   135,   136,   137,   137,   137,   137,   137,   137,   138,
-     138,   139,   139,   140,   140,   140,   141,   141,   142,   143,
-     143,   144,   144,   144,   144,   144,   145,   145,   145,   146,
-     146,   146,   146,   146,   146,   146,   147,   147,   148,   149,
-     149,   150,   150,   151,   151,   152,   152,   153,   154,   155,
-     155,   156,   157,   157,   157,   157,   158,   159,   159,   160,
-     161,   162,   162,   162,   162,   163,   163,   163,   164,   165,
-     165,   166,   166,   167,   168,   169,   170,   171,   172,   173,
-     173,   174,   174,   174,   175,   175,   176,   177,   178,   179,
-     180,   181,   181,   182,   183,   184,   185,   186,   186,   187,
-     187,   187,   187,   188,   189,   189,   190,   191,   192,   193,
-     194,   195,   195,   196,   196,   197,   198,   198,   199,   199,
-     200,   201,   201,   202,   202,   203,   204,   204,   205,   205,
-     206,   206,   207,   207,   208,   209,   210,   211,   211,   211
+       0,    87,    89,    88,    90,    91,    92,    92,    93,    94,
+      94,    95,    95,    96,    97,    98,    98,    98,    98,    98,
+      99,   100,   101,   101,   101,   101,   101,   102,   103,   103,
+     104,   105,   105,   105,   106,   107,   107,   107,   108,   109,
+     110,   110,   111,   112,   112,   113,   114,   114,   114,   114,
+     115,   116,   117,   117,   118,   119,   120,   120,   121,   121,
+     122,   123,   124,   124,   125,   126,   126,   127,   128,   129,
+     130,   131,   131,   131,   132,   133,   133,   134,   135,   135,
+     136,   137,   138,   139,   139,   139,   139,   139,   139,   140,
+     140,   141,   141,   142,   142,   142,   143,   143,   144,   145,
+     145,   146,   146,   146,   146,   146,   147,   147,   147,   148,
+     148,   148,   148,   148,   148,   148,   149,   149,   150,   151,
+     151,   152,   152,   153,   153,   154,   154,   155,   156,   157,
+     157,   158,   159,   159,   159,   159,   159,   160,   161,   161,
+     162,   163,   163,   164,   165,   165,   166,   167,   168,   168,
+     168,   168,   169,   169,   169,   170,   171,   171,   172,   172,
+     173,   174,   175,   176,   177,   178,   179,   179,   180,   180,
+     180,   181,   181,   182,   183,   184,   185,   186,   187,   187,
+     188,   189,   190,   191,   192,   192,   193,   193,   193,   193,
+     194,   195,   195,   196,   197,   198,   199,   200,   201,   201,
+     202,   202,   203,   204,   204,   205,   205,   206,   207,   207,
+     208,   208,   209,   210,   210,   211,   211,   212,   212,   213,
+     213,   214,   215,   216,   217,   217,   217
 };
 
 /* YYR2[YYN] -- Number of symbols composing right hand side of rule YYN.  */
@@ -1328,15 +1574,16 @@ static const yytype_uint8 yyr2[] =
        3,     1,     1,     1,     1,     1,     1,     1,     1,     1,
        1,     1,     1,     1,     1,     1,     3,     4,     2,     0,
        3,     1,     1,     1,     1,     1,     1,     3,     3,     1,
-       1,     1,     1,     1,     1,     1,     3,     1,     4,     2,
-       0,     1,     1,     1,     1,     1,     1,     1,     3,     1,
-       1,     1,     1,     4,     6,     6,     5,     3,     2,     0,
-       3,     1,     1,     1,     1,     1,     4,     4,     4,     8,
-       8,     1,     1,     4,     4,     7,     6,     0,     1,     1,
-       1,     1,     1,     2,     0,     3,     1,     2,     2,     2,
-       3,     0,     3,     0,     2,     3,     0,     3,     0,     2,
-       3,     0,     3,     0,     2,     3,     0,     3,     0,     3,
-       0,     3,     1,     1,     7,     8,     8,     0,     3,     6
+       1,     1,     1,     1,     1,     1,     1,     3,     4,     4,
+       2,     0,     3,     1,     1,     4,     2,     0,     1,     1,
+       1,     1,     1,     1,     1,     3,     1,     1,     1,     1,
+       4,     6,     6,     5,     3,     2,     0,     3,     1,     1,
+       1,     1,     1,     4,     4,     4,     8,     8,     1,     1,
+       4,     4,     7,     6,     0,     1,     1,     1,     1,     1,
+       2,     0,     3,     1,     2,     2,     2,     3,     0,     3,
+       0,     2,     3,     0,     3,     0,     2,     3,     0,     3,
+       0,     2,     3,     0,     3,     0,     3,     0,     3,     1,
+       1,     7,     8,     8,     0,     3,     6
 };
 
 /* YYDEFACT[STATE-NAME] -- Default rule to reduce with in state
@@ -1344,310 +1591,320 @@ static const yytype_uint8 yyr2[] =
    means the default is an error.  */
 static const yytype_uint8 yydefact[] =
 {
-       2,     0,   217,     1,     0,     3,   191,    14,     0,     0,
-     193,   218,     0,     4,     6,     0,     0,   198,    40,     0,
-       0,     5,   192,     0,     0,   194,     0,   203,     0,    39,
-       0,     6,     0,   196,     0,     0,   199,     0,   208,    40,
-     219,     7,     8,    13,    12,    11,     9,    10,    22,     0,
-      26,    24,    23,    25,    30,     0,   195,     0,   201,     0,
-       0,   204,     0,     0,   212,   191,     0,     0,   213,   191,
-      41,    20,    21,   196,     0,     0,     0,     0,     0,     0,
+       2,     0,   224,     1,     0,     3,   198,    14,     0,     0,
+     200,   225,     0,     4,     6,     0,     0,   205,    40,     0,
+       0,     5,   199,     0,     0,   201,     0,   210,     0,    39,
+       0,     6,     0,   203,     0,     0,   206,     0,   215,    40,
+     226,     7,     8,    13,    12,    11,     9,    10,    22,     0,
+      26,    24,    23,    25,    30,     0,   202,     0,   208,     0,
+       0,   211,     0,     0,   219,   198,     0,     0,   220,   198,
+      41,    20,    21,   203,     0,     0,     0,     0,     0,     0,
        0,    37,     0,    34,    31,    35,    36,    32,    44,    43,
-      46,    47,    48,    49,    33,     0,   200,     0,   206,     0,
-       0,   193,   140,     0,   210,   193,   197,     0,     0,    45,
+      46,    47,    48,    49,    33,     0,   207,     0,   213,     0,
+       0,   200,   147,     0,   217,   200,   204,     0,     0,    45,
        0,     0,     0,    55,    58,    57,     0,    69,     0,     0,
-     201,    70,     0,   205,   177,   177,   198,     0,     0,     0,
-       0,   140,     0,     0,     0,    77,     0,    71,    72,    78,
-      79,    73,     0,   119,   121,   122,   123,   125,   124,   126,
-     129,   132,   133,   134,   135,   130,   131,   141,   142,   145,
-     151,   149,   152,   150,   143,   146,   161,   164,   162,   163,
-     165,   144,   147,   216,   209,     0,   198,    52,     0,    68,
-       0,     0,    54,     0,    56,    67,    38,    42,   202,   206,
-       0,     0,     0,     0,     0,   184,   178,   179,   180,   181,
-     182,   186,     0,   203,    19,    17,    18,     0,     0,     0,
-     107,   108,   106,    15,    16,    77,    84,    83,    92,    86,
-      95,    97,     0,     0,    85,     0,   139,     0,     0,     0,
-      77,    75,     0,   140,     0,     0,    82,     0,     0,   148,
-     140,   118,   210,   203,     0,    51,     0,     0,    60,    59,
-     207,   188,   189,   187,     0,     0,     0,   183,     0,   208,
-       0,    90,    99,     0,    88,     0,   105,   103,   104,   102,
-     101,     0,   115,   111,   113,   114,   110,   109,   112,     0,
-       0,     0,    94,     0,   140,     0,   140,     0,    74,   140,
-     127,   128,     0,   136,     0,    81,   119,   211,   208,    52,
-       0,     0,   190,     0,   184,   176,     0,    87,     0,    98,
-      89,   116,     0,    91,    93,    96,    28,     0,   159,     0,
-       0,     0,     0,     0,     0,     0,   153,   168,   166,   167,
-      75,   173,   174,   138,    80,   120,     0,    53,    50,     0,
-       0,   185,   175,    99,   117,     0,    27,   140,     0,   158,
-     156,   172,   171,     0,     0,     0,     0,     0,   140,   140,
-      76,   214,    63,    65,    61,   215,   100,    28,   157,   159,
-       0,     0,   140,   140,   140,   154,   155,     0,     0,    64,
-      29,   160,   140,     0,     0,     0,    65,   169,   170,     0,
-     140,     0,    66,     0,    62,   140
+     208,    70,     0,   212,   184,   184,   205,     0,     0,     0,
+       0,     0,     0,   147,     0,     0,     0,    77,     0,    71,
+      72,    78,    79,    73,     0,   119,   121,   122,   123,   125,
+     124,   126,   129,   132,   133,   134,   135,   136,   130,   131,
+     148,   149,   152,   158,   156,   159,   157,   150,   153,   168,
+     171,   169,   170,   172,   151,   154,   223,   216,     0,   205,
+      52,     0,    68,     0,     0,    54,     0,    56,    67,    38,
+      42,   209,   213,     0,     0,     0,     0,     0,   191,   185,
+     186,   187,   188,   189,   193,     0,   210,    19,    17,    18,
+       0,     0,     0,   107,   108,   106,    15,    16,    77,    84,
+      83,    92,    86,    95,    97,     0,     0,    85,     0,   146,
+       0,     0,     0,     0,     0,    77,    75,     0,   147,     0,
+       0,    82,     0,     0,   155,   147,   118,   217,   210,     0,
+      51,     0,     0,    60,    59,   214,   195,   196,   194,     0,
+       0,     0,   190,     0,   215,     0,    90,    99,     0,    88,
+       0,   105,   103,   104,   102,   101,     0,   115,   111,   113,
+     114,   110,   109,   112,     0,     0,     0,    94,     0,   147,
+     143,     0,   141,     0,     0,   147,     0,    74,   147,   127,
+     128,     0,   137,     0,    81,   119,   218,   215,    52,     0,
+       0,   197,     0,   191,   183,     0,    87,     0,    98,    89,
+     116,     0,    91,    93,    96,    28,     0,   166,     0,     0,
+       0,     0,     0,     0,     0,   160,   138,     0,   140,   139,
+     175,   173,   174,    75,   180,   181,   145,    80,   120,     0,
+      53,    50,     0,     0,   192,   182,    99,   117,     0,    27,
+     147,     0,   165,   163,   179,   178,     0,     0,     0,     0,
+       0,   147,   147,   141,    76,   221,    63,    65,    61,   222,
+     100,    28,   164,   166,     0,     0,   147,   147,   147,   161,
+     162,   142,     0,     0,    64,    29,   167,   147,     0,     0,
+       0,    65,   176,   177,     0,   147,     0,    66,     0,    62,
+     147
 };
 
 /* YYDEFGOTO[NTERM-NUM].  */
 static const yytype_int16 yydefgoto[] =
 {
-      -1,     1,     2,    46,    15,    21,    47,   213,    49,   214,
-     215,   216,    52,    53,    82,   317,   346,    55,    83,    95,
-      84,    85,   193,    29,    86,    87,    88,    89,    90,   178,
-     245,    91,   112,   113,   184,   114,   115,   363,   364,   379,
-      92,    93,    94,   122,   217,   232,   288,   137,   138,   139,
-     140,   141,   218,   219,   220,   221,   262,   263,   309,   271,
-     223,   280,   224,   142,   241,   143,   144,   145,   146,   147,
-     148,   149,   150,   151,   152,   153,   154,   155,   156,   157,
-     158,   159,   160,   161,   162,   163,   318,   319,   349,   164,
-     165,   166,   167,   168,   169,   170,   353,   171,   172,    64,
-      65,   194,   195,   196,   257,   197,   198,   199,   200,   201,
-      10,    17,    25,    56,    27,    36,    96,    38,    61,   123,
-      66,   174,    67,    68,    69,     5,     6
+      -1,     1,     2,    46,    15,    21,    47,   216,    49,   217,
+     218,   219,    52,    53,    82,   326,   359,    55,    83,    95,
+      84,    85,   196,    29,    86,    87,    88,    89,    90,   181,
+     250,    91,   112,   113,   187,   114,   115,   377,   378,   394,
+      92,    93,    94,   122,   220,   237,   297,   139,   140,   141,
+     142,   143,   221,   222,   223,   224,   267,   268,   318,   276,
+     226,   285,   227,   144,   246,   145,   146,   147,   148,   149,
+     150,   151,   152,   153,   154,   291,   338,   292,   155,   156,
+     157,   158,   159,   160,   161,   162,   163,   164,   165,   166,
+     327,   328,   362,   167,   168,   169,   170,   171,   172,   173,
+     366,   174,   175,    64,    65,   197,   198,   199,   262,   200,
+     201,   202,   203,   204,    10,    17,    25,    56,    27,    36,
+      96,    38,    61,   123,    66,   177,    67,    68,    69,     5,
+       6
 };
 
 /* YYPACT[STATE-NUM] -- Index in YYTABLE of the portion describing
    STATE-NUM.  */
-#define YYPACT_NINF -322
+#define YYPACT_NINF -337
 static const yytype_int16 yypact[] =
 {
-    -322,    40,    12,  -322,    50,  -322,    38,  -322,    26,    65,
-      68,  -322,    50,  -322,    45,    43,    50,    57,    58,    52,
-      65,  -322,  -322,    46,    80,  -322,    50,    91,    50,  -322,
-      83,    45,    55,    50,    73,    90,  -322,    50,   -13,    58,
-    -322,  -322,  -322,  -322,  -322,  -322,  -322,  -322,  -322,   148,
-    -322,  -322,  -322,  -322,  -322,    96,  -322,   194,    50,   110,
-     115,  -322,    50,    50,  -322,    38,   161,   124,  -322,    38,
-    -322,  -322,  -322,    50,   127,   167,   156,    14,   169,    50,
-      50,   129,   141,  -322,  -322,  -322,  -322,  -322,  -322,  -322,
-    -322,  -322,  -322,  -322,  -322,   152,  -322,   194,    50,   147,
-     164,    68,   137,   157,   -13,    68,  -322,   162,   194,  -322,
-      50,   173,   203,  -322,   171,  -322,   162,  -322,   170,    55,
-      50,  -322,   174,  -322,    56,    56,    57,   506,    50,    65,
-     506,   137,   506,    50,   181,   112,   -11,  -322,  -322,  -322,
-    -322,  -322,   216,   185,  -322,  -322,  -322,  -322,  -322,  -322,
-    -322,  -322,  -322,  -322,  -322,  -322,  -322,  -322,  -322,  -322,
-    -322,  -322,  -322,  -322,  -322,  -322,  -322,  -322,  -322,  -322,
-    -322,  -322,  -322,  -322,  -322,   188,    57,   197,   187,  -322,
-     204,   194,  -322,    14,  -322,  -322,  -322,  -322,  -322,    50,
-      50,    50,    50,   205,   201,   199,  -322,  -322,  -322,  -322,
-    -322,  -322,   206,    91,  -322,  -322,  -322,   506,   418,   525,
-    -322,  -322,  -322,  -322,  -322,   209,  -322,   -18,  -322,  -322,
-     145,   250,   227,   525,  -322,   211,  -322,   229,   223,   251,
-    -322,   138,   254,   420,   506,   506,  -322,   506,    50,  -322,
-     137,  -322,   -13,    91,   162,  -322,   241,    50,  -322,  -322,
-    -322,  -322,  -322,  -322,    50,   224,    56,  -322,   222,   -13,
-     225,  -322,   233,   220,  -322,   487,  -322,  -322,  -322,  -322,
-    -322,   525,  -322,  -322,  -322,  -322,  -322,  -322,  -322,   525,
-     506,    55,   145,   506,   406,   506,   137,    50,  -322,   137,
-    -322,  -322,   230,  -322,   231,  -322,   185,  -322,   -13,   197,
-     194,   255,  -322,    50,   199,  -322,   161,  -322,   506,  -322,
-    -322,  -322,   232,  -322,   145,   149,   239,   242,   237,   272,
-      -8,    50,   506,   506,    50,   245,   277,  -322,  -322,  -322,
-     138,  -322,  -322,  -322,  -322,  -322,   161,  -322,  -322,    55,
-     247,  -322,  -322,   233,  -322,    55,  -322,   137,    55,  -322,
-    -322,  -322,  -322,   506,   257,   264,   286,   289,   556,   137,
-    -322,  -322,   258,   256,  -322,  -322,  -322,   239,  -322,   237,
-     293,   506,   406,   406,   406,  -322,  -322,   259,    55,  -322,
-    -322,  -322,   137,    -8,   292,    14,   256,  -322,  -322,   506,
-     406,   260,  -322,   295,  -322,   406
+    -337,    48,    35,  -337,    89,  -337,    51,  -337,    29,    87,
+      82,  -337,    89,  -337,    58,    67,    89,    81,    83,    76,
+      87,  -337,  -337,    64,    88,  -337,    89,   107,    89,  -337,
+      93,    58,   129,    89,    79,   104,  -337,    89,     1,    83,
+    -337,  -337,  -337,  -337,  -337,  -337,  -337,  -337,  -337,    46,
+    -337,  -337,  -337,  -337,  -337,   111,  -337,   255,    89,   119,
+     117,  -337,    89,    89,  -337,    51,   159,   125,  -337,    51,
+    -337,  -337,  -337,    89,   126,   144,   103,    34,   154,    89,
+      89,   140,   142,  -337,  -337,  -337,  -337,  -337,  -337,  -337,
+    -337,  -337,  -337,  -337,  -337,   147,  -337,   255,    89,   149,
+     150,    82,   519,   136,     1,    82,  -337,    57,   255,  -337,
+      89,   170,   193,  -337,   168,  -337,    57,  -337,   174,   129,
+      89,  -337,   172,  -337,   120,   120,    81,   465,    89,    87,
+     465,   179,   181,   519,   465,    89,   188,    62,   162,  -337,
+    -337,  -337,  -337,  -337,   212,   186,  -337,  -337,  -337,  -337,
+    -337,  -337,  -337,  -337,  -337,  -337,  -337,  -337,  -337,  -337,
+    -337,  -337,  -337,  -337,  -337,  -337,  -337,  -337,  -337,  -337,
+    -337,  -337,  -337,  -337,  -337,  -337,  -337,  -337,   190,    81,
+     191,   187,  -337,   197,   255,  -337,    34,  -337,  -337,  -337,
+    -337,  -337,    89,    89,    89,    89,   199,   194,   198,  -337,
+    -337,  -337,  -337,  -337,  -337,   195,   107,  -337,  -337,  -337,
+     465,   152,   141,  -337,  -337,  -337,  -337,  -337,   201,  -337,
+     -12,  -337,  -337,   206,   419,   224,   141,  -337,   209,  -337,
+     221,   465,   465,   218,   250,  -337,   176,   252,   553,   465,
+     465,  -337,   465,    89,  -337,   519,  -337,     1,   107,    57,
+    -337,   245,    89,  -337,  -337,  -337,  -337,  -337,  -337,    89,
+     226,   120,  -337,   225,     1,   228,  -337,   230,   227,  -337,
+     394,  -337,  -337,  -337,  -337,  -337,   141,  -337,  -337,  -337,
+    -337,  -337,  -337,  -337,   141,   465,   129,   206,   465,   536,
+    -337,   231,   243,   239,   465,   519,    89,  -337,   519,  -337,
+    -337,   240,  -337,   241,  -337,   186,  -337,     1,   191,   255,
+     267,  -337,    89,   198,  -337,   159,  -337,   465,  -337,  -337,
+    -337,   242,  -337,   206,   145,   249,   254,   248,   286,    -1,
+      89,   465,   465,    89,   257,   291,  -337,   465,  -337,  -337,
+    -337,  -337,  -337,   176,  -337,  -337,  -337,  -337,  -337,   159,
+    -337,  -337,   129,   258,  -337,  -337,   230,  -337,   129,  -337,
+     519,   129,  -337,  -337,  -337,  -337,   465,   266,   277,   304,
+     309,   570,   519,   243,  -337,  -337,   280,   279,  -337,  -337,
+    -337,   249,  -337,   248,   318,   465,   536,   536,   536,  -337,
+    -337,  -337,   281,   129,  -337,  -337,  -337,   519,    -1,   317,
+      34,   279,  -337,  -337,   465,   536,   282,  -337,   323,  -337,
+     536
 };
 
 /* YYPGOTO[NTERM-NUM].  */
 static const yytype_int16 yypgoto[] =
 {
-    -322,  -322,  -322,    16,  -322,   288,  -322,    -6,  -322,   -30,
-      -4,  -322,  -322,  -322,    17,  -321,   -43,   309,   -93,   306,
-    -102,  -322,     7,   297,  -322,  -322,  -322,   261,  -322,  -322,
-      35,  -322,   -45,   166,  -322,  -322,  -322,   -33,  -322,   -39,
-    -322,  -322,  -322,   313,   113,    27,    22,  -322,  -322,  -322,
-    -322,  -322,  -200,  -322,  -207,    77,   131,  -142,    15,  -322,
-    -204,  -322,  -322,   228,    64,  -233,  -234,  -252,  -322,  -322,
-    -227,   128,  -322,  -322,  -322,  -322,  -322,  -322,  -322,   -65,
-    -322,  -322,  -322,  -322,  -322,  -322,    19,  -322,    -5,  -322,
-    -322,  -322,  -322,  -322,  -322,  -322,   -12,  -322,  -322,  -322,
-    -322,   248,   120,  -322,    75,  -322,  -322,  -322,  -322,   -73,
-      94,   -22,  -322,   304,  -116,  -322,   262,  -180,  -322,   191,
-    -228,   142,  -101,  -322,  -322,  -322,  -322
+    -337,  -337,  -337,    26,  -337,   312,  -337,   -19,  -337,    -6,
+      -4,  -337,  -337,  -337,   -27,  -336,   -37,   329,   -94,   321,
+    -101,  -337,     7,   310,  -337,  -337,  -337,   274,  -337,  -337,
+      43,  -337,   -47,   173,  -337,  -337,  -337,   -35,  -337,   -41,
+    -337,  -337,  -337,   324,    75,    30,    19,  -337,  -337,  -337,
+    -337,  -337,  -202,  -337,  -205,    80,   189,  -200,    13,  -337,
+    -215,  -337,  -337,   244,    70,  -238,  -218,  -264,  -337,  -337,
+    -234,   134,  -337,  -337,  -337,   146,     3,    42,  -337,  -337,
+    -337,  -337,  -337,   -65,  -337,  -337,  -337,  -337,  -337,  -337,
+      20,  -337,    -3,  -337,  -337,  -337,  -337,  -337,  -337,  -337,
+     -13,  -337,  -337,  -337,  -337,   263,   130,  -337,    77,  -337,
+    -337,  -337,  -337,  -170,   -33,   -40,  -337,   319,  -115,  -337,
+     275,  -186,  -337,   202,  -247,   155,  -102,  -337,  -337,  -337,
+    -337
 };
 
 /* YYTABLE[YYPACT[STATE-NUM]].  What to do in state STATE-NUM.  If
    positive, shift that token.  If negative, reduce the rule which
    number is the opposite.  If zero, do what YYDEFACT says.
    If YYTABLE_NINF, syntax error.  */
-#define YYTABLE_NINF -138
+#define YYTABLE_NINF -145
 static const yytype_int16 yytable[] =
 {
-       8,   103,    50,   175,   121,   177,   290,   296,    18,   264,
-     203,   351,    23,    62,   185,   179,   282,   279,   362,    19,
-       7,    63,    34,   259,    39,    14,    48,    50,    51,    23,
-     110,   306,   352,    18,   329,   236,    31,   332,   235,   237,
-       3,   238,   236,    71,    59,    72,   237,     4,   238,    54,
-     326,    48,   328,    81,    34,   331,     7,   362,    99,   100,
-     243,     7,     7,   298,    13,    42,    43,    50,     9,    23,
-     336,   313,   314,    18,    13,   117,    18,    50,    50,   126,
-      11,    12,   190,   176,   111,    16,    50,   118,   248,    50,
-     191,    48,   292,    81,    18,   294,    20,    22,   135,    26,
-     192,    48,    48,    81,    81,    59,   180,   376,    30,    28,
-      48,   279,    81,    48,   368,    51,    34,   251,   134,   253,
-      18,    18,    32,   312,   225,   375,    44,   135,    45,   230,
-     388,   290,  -137,  -137,    33,    37,   187,    40,   384,   328,
-     331,   175,   299,     7,    58,   226,    13,   134,   387,    57,
-      73,    50,   102,   127,     7,  -137,   375,    13,    42,   101,
-      97,   387,   128,   105,   129,   130,  -137,   234,     7,    98,
-      74,    13,    42,    43,   131,    48,   102,    81,   104,    18,
-      75,   -24,   132,   133,   107,    18,    18,    18,    18,   287,
-     111,   236,    77,   119,    78,   237,    59,   238,   252,   108,
-       7,   116,   124,    13,    42,    43,   120,   338,    74,   266,
-     267,   268,   269,   270,    50,   136,   173,    80,    75,   125,
-     210,   211,   212,   181,   182,   183,   186,    76,   189,   135,
-      77,   233,    78,    44,   295,    45,   135,   239,    48,   240,
-      81,   342,   242,   301,   136,   246,   231,    79,   244,    80,
-     302,    50,    18,   256,   247,   254,   134,   255,   222,   281,
-     283,   227,   258,   229,   265,    44,   285,    45,   284,   286,
-      50,   361,   289,   300,   303,    48,   305,    51,   310,   272,
-     135,   307,   135,   230,   308,   135,   333,   339,   344,   334,
-     345,   348,   347,   350,    48,   358,    81,   359,   316,   340,
-     325,   365,   134,   372,   373,   134,   371,   374,   377,    50,
-     378,   382,   390,   395,   385,    50,   394,   354,    50,    41,
-     230,   210,   211,   212,   380,    24,   273,   274,   275,   276,
-     277,   278,    35,    48,   337,    51,    70,   109,   260,    48,
-     391,    51,    48,   135,    51,   386,   136,   392,    50,   249,
-      60,   357,   360,   136,   135,   135,   316,   315,   366,   228,
-     335,   291,   367,   134,   381,   316,   293,   369,   135,   135,
-     135,   389,    48,   202,    51,   134,   304,   106,   135,   341,
-     250,    18,   188,     0,   297,     0,   135,     0,   325,   325,
-     325,   135,   111,     0,     0,   316,     0,   136,   134,   136,
-     330,     0,   136,     0,     0,     0,   325,     0,     0,     0,
-       0,   325,     7,     0,   320,    13,   327,     0,     0,     0,
-       0,   102,   127,     0,     7,     0,     7,    13,    42,    43,
-       0,   321,     0,   129,   322,   102,   127,   231,     0,   343,
-       0,   204,     0,   131,     0,   128,     0,   129,   130,   205,
-       0,   323,   324,   355,   356,     0,     0,   131,     0,   206,
-     136,     0,     0,     0,     0,   132,   133,     0,     0,     0,
-       0,   136,   136,   207,     0,   208,   261,     0,     0,     0,
-     209,     0,     0,     0,   370,   136,   136,   136,     0,   210,
-     211,   212,     0,     7,     0,   136,    13,    42,    43,     0,
-       0,     0,   383,   136,     0,     0,     0,     0,   136,     0,
-     204,     0,     7,     0,     0,    13,    42,    43,   205,     0,
-     393,     0,     0,     0,     0,     0,     0,     0,   206,   204,
-       0,     7,     0,     0,    13,    42,    43,   205,     0,     0,
-       0,     0,   207,   311,   208,     0,     0,   206,   204,   209,
-       0,     0,     0,     0,     0,     0,   205,     0,   210,   211,
-     212,   207,     7,   208,     0,     0,   206,     0,   209,     0,
-       0,   102,   127,     0,     0,     0,     0,   210,   211,   212,
-     207,   321,   208,   129,   322,     0,     0,   209,     0,     0,
-       0,     0,     0,   131,     0,     0,     0,     0,     0,     0,
-       0,   323,   324
+       8,   103,   178,   121,   299,    54,   180,   305,    18,   284,
+     269,   206,    23,    48,   182,   188,   376,   315,   364,    19,
+     264,   287,    34,   256,    39,   258,    50,    62,    51,    23,
+      71,   342,   101,    18,   345,    14,   105,    63,    48,   301,
+       7,   365,   303,   241,    59,    72,    31,   242,     3,   243,
+     110,    50,     7,    81,    34,    13,    42,   376,    99,   100,
+     349,   126,   307,     7,   248,   179,    13,    42,    43,    23,
+     321,   335,     4,    18,   322,   117,    18,   341,    48,   323,
+     344,     9,  -144,  -144,   111,    11,    12,   118,    48,    48,
+     253,    50,   190,    81,    18,     7,    13,    48,   137,    16,
+      48,    50,    50,    81,    81,    59,   183,  -144,   390,   284,
+      50,    20,    81,    50,    80,    51,    34,    74,  -144,   239,
+      18,    18,   382,    22,   228,    26,     7,    75,   136,   137,
+      44,   235,    45,   403,    30,     7,    28,   299,    13,    42,
+      43,    77,    32,    78,    33,   178,   193,     7,   308,    40,
+      13,    42,    43,    37,   389,   229,   194,    57,     7,   136,
+      58,    13,    42,    43,   207,    48,   195,    73,   399,   341,
+     344,    97,   208,    98,   102,   207,   108,   138,    50,   402,
+      81,   104,    18,   208,   209,   107,   116,   389,    18,    18,
+      18,    18,   402,   111,   -24,   209,   119,   176,   210,    59,
+     211,   257,    44,   120,    45,   212,   124,   125,   138,   210,
+     236,   211,   266,   240,   185,   351,   212,   241,   213,   214,
+     215,   242,   184,   243,   186,   213,   214,   215,   192,   296,
+      48,   241,   189,   244,   137,   242,   231,   243,   232,   304,
+     238,   137,   245,    50,   249,    81,   247,   251,   310,   252,
+     355,   259,   260,   263,   261,   311,   286,    18,   270,   325,
+     288,     7,   289,   294,    13,    42,    43,    48,   295,    74,
+     298,   136,   271,   272,   273,   274,   275,   309,   312,    75,
+      50,   314,    51,   317,   375,   137,   316,   319,    76,   336,
+      48,   137,   235,    77,   137,    78,   337,   339,   346,   352,
+     357,   347,   358,    50,   361,    81,   360,   363,   353,   371,
+      79,   372,    80,   138,   379,   334,   225,   385,   386,   230,
+     138,   136,   387,   234,   136,   325,   367,   388,    44,   235,
+      45,   381,   392,    48,   325,   393,   397,   405,   400,    48,
+     409,   410,    48,    41,   395,    24,    50,    35,    51,    70,
+     109,   350,    50,   406,    51,    50,   137,    51,   401,   254,
+     407,    60,   374,   370,   138,   324,   325,   137,   137,   380,
+     138,   343,   300,   138,    48,   348,   391,   233,   293,   373,
+     396,   383,   137,   137,   137,   404,   136,    50,   205,    51,
+     354,   313,   106,   137,   255,   191,    18,     0,   136,   265,
+       7,   137,   306,    13,    42,    43,   137,   111,   236,     0,
+       0,     0,   334,   334,   334,     0,     0,   207,     0,     0,
+     290,   290,     0,   136,     0,   208,     0,     0,     0,   302,
+       0,   334,     0,     0,     0,   138,   334,   209,     0,     0,
+       0,     0,     0,     0,     0,     0,   138,   138,   277,     0,
+       0,   210,   320,   211,     0,     0,     0,     0,   212,     0,
+       0,   138,   138,   138,     0,     0,     0,   213,   214,   215,
+       0,     7,   138,     0,    13,    42,    43,   329,     0,     0,
+     138,     0,     0,   340,     0,   138,     0,     0,   207,     0,
+       0,     0,   213,   214,   215,     0,   208,   278,   279,   280,
+     281,   282,   283,     0,     0,     0,   356,     0,   209,     0,
+       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
+     368,   369,   210,     0,   211,     7,   290,     0,    13,   212,
+       0,     0,     0,     0,   102,   127,     0,     0,   213,   214,
+     215,     0,     7,     0,   128,    13,   129,   130,     0,     0,
+       0,   102,   127,   131,   132,   384,     0,     0,   133,     7,
+       0,   330,     0,   129,   331,     0,   134,   135,   102,   127,
+     131,   132,     0,     0,   398,   133,     7,     0,   128,     0,
+     129,   130,     0,   332,   333,   102,   127,   131,   132,     0,
+       0,     0,   133,   408,     0,   330,     0,   129,   331,     0,
+     134,   135,     0,     0,   131,   132,     0,     0,     0,   133,
+       0,     0,     0,     0,     0,     0,     0,   332,   333
 };
 
 static const yytype_int16 yycheck[] =
 {
-       4,    66,    32,   104,    97,   107,   233,   240,    12,   209,
-     126,    19,    16,    26,   116,   108,   223,   221,   339,    12,
-       6,    34,    26,   203,    28,     9,    32,    57,    32,    33,
-      16,   259,    40,    37,   286,    53,    20,   289,    49,    57,
-       0,    59,    53,    49,    37,    49,    57,    35,    59,    32,
-     284,    57,   286,    57,    58,   289,     6,   378,    62,    63,
-     176,     6,     6,   243,     9,    10,    11,    97,    30,    73,
-     298,   271,   279,    77,     9,    79,    80,   107,   108,   101,
-      54,    55,    26,   105,    77,    17,   116,    80,   181,   119,
-      34,    97,   234,    97,    98,   237,    51,    54,   102,    42,
-      44,   107,   108,   107,   108,    98,   110,   359,    56,    51,
-     116,   315,   116,   119,   347,   119,   120,   190,   102,   192,
-     124,   125,    76,   265,   128,   359,    71,   131,    73,   133,
-     382,   358,    20,    21,    54,    44,   119,    54,   372,   373,
-     374,   242,   244,     6,    54,   129,     9,   131,   382,    76,
-      54,   181,    15,    16,     6,    43,   390,     9,    10,    65,
-      50,   395,    25,    69,    27,    28,    54,    55,     6,    54,
-      14,     9,    10,    11,    37,   181,    15,   181,    54,   183,
-      24,    52,    45,    46,    57,   189,   190,   191,   192,    51,
-     183,    53,    36,    52,    38,    57,   189,    59,   191,    32,
-       6,    32,    55,     9,    10,    11,    54,   300,    14,    64,
-      65,    66,    67,    68,   244,   102,    59,    55,    24,    55,
-      71,    72,    73,    50,    21,    54,    56,    33,    54,   233,
-      36,    50,    38,    71,   238,    73,   240,    21,   244,    54,
-     244,   306,    54,   247,   131,    58,   133,    53,    51,    55,
-     254,   281,   256,    54,    50,    50,   240,    56,   127,    32,
-      49,   130,    56,   132,    55,    71,    43,    73,    39,    18,
-     300,   336,    18,    32,    50,   281,    54,   281,    58,    29,
-     284,    56,   286,   287,    51,   289,    56,    32,    56,    58,
-      51,    54,    50,    21,   300,    50,   300,    20,   281,   303,
-     284,    54,   286,    39,    18,   289,    49,    18,    50,   339,
-      54,    18,    20,    18,    55,   345,    56,   321,   348,    31,
-     324,    71,    72,    73,   367,    16,    76,    77,    78,    79,
-      80,    81,    26,   339,   299,   339,    39,    76,   207,   345,
-     385,   345,   348,   347,   348,   378,   233,   386,   378,   183,
-      37,   324,   330,   240,   358,   359,   339,   280,   343,   131,
-     296,   233,   345,   347,   369,   348,   235,   348,   372,   373,
-     374,   383,   378,   125,   378,   359,   256,    73,   382,   304,
-     189,   385,   120,    -1,   242,    -1,   390,    -1,   372,   373,
-     374,   395,   385,    -1,    -1,   378,    -1,   284,   382,   286,
-     287,    -1,   289,    -1,    -1,    -1,   390,    -1,    -1,    -1,
-      -1,   395,     6,    -1,   283,     9,   285,    -1,    -1,    -1,
-      -1,    15,    16,    -1,     6,    -1,     6,     9,    10,    11,
-      -1,    25,    -1,    27,    28,    15,    16,   324,    -1,   308,
-      -1,    23,    -1,    37,    -1,    25,    -1,    27,    28,    31,
-      -1,    45,    46,   322,   323,    -1,    -1,    37,    -1,    41,
-     347,    -1,    -1,    -1,    -1,    45,    46,    -1,    -1,    -1,
-      -1,   358,   359,    55,    -1,    57,    58,    -1,    -1,    -1,
-      62,    -1,    -1,    -1,   353,   372,   373,   374,    -1,    71,
-      72,    73,    -1,     6,    -1,   382,     9,    10,    11,    -1,
-      -1,    -1,   371,   390,    -1,    -1,    -1,    -1,   395,    -1,
-      23,    -1,     6,    -1,    -1,     9,    10,    11,    31,    -1,
-     389,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    41,    23,
-      -1,     6,    -1,    -1,     9,    10,    11,    31,    -1,    -1,
-      -1,    -1,    55,    56,    57,    -1,    -1,    41,    23,    62,
-      -1,    -1,    -1,    -1,    -1,    -1,    31,    -1,    71,    72,
-      73,    55,     6,    57,    -1,    -1,    41,    -1,    62,    -1,
-      -1,    15,    16,    -1,    -1,    -1,    -1,    71,    72,    73,
-      55,    25,    57,    27,    28,    -1,    -1,    62,    -1,    -1,
-      -1,    -1,    -1,    37,    -1,    -1,    -1,    -1,    -1,    -1,
-      -1,    45,    46
+       4,    66,   104,    97,   238,    32,   107,   245,    12,   224,
+     212,   126,    16,    32,   108,   116,   352,   264,    19,    12,
+     206,   226,    26,   193,    28,   195,    32,    26,    32,    33,
+      49,   295,    65,    37,   298,     9,    69,    36,    57,   239,
+       6,    42,   242,    55,    37,    49,    20,    59,     0,    61,
+      16,    57,     6,    57,    58,     9,    10,   393,    62,    63,
+     307,   101,   248,     6,   179,   105,     9,    10,    11,    73,
+     270,   289,    37,    77,   276,    79,    80,   295,    97,   284,
+     298,    30,    20,    21,    77,    56,    57,    80,   107,   108,
+     184,    97,   119,    97,    98,     6,     9,   116,   102,    17,
+     119,   107,   108,   107,   108,    98,   110,    45,   372,   324,
+     116,    53,   116,   119,    57,   119,   120,    14,    56,    57,
+     124,   125,   360,    56,   128,    44,     6,    24,   102,   133,
+      73,   135,    75,   397,    58,     6,    53,   371,     9,    10,
+      11,    38,    78,    40,    56,   247,    26,     6,   249,    56,
+       9,    10,    11,    46,   372,   129,    36,    78,     6,   133,
+      56,     9,    10,    11,    23,   184,    46,    56,   386,   387,
+     388,    52,    31,    56,    15,    23,    32,   102,   184,   397,
+     184,    56,   186,    31,    43,    59,    32,   405,   192,   193,
+     194,   195,   410,   186,    54,    43,    54,    61,    57,   192,
+      59,   194,    73,    56,    75,    64,    57,    57,   133,    57,
+     135,    59,    60,    51,    21,   309,    64,    55,    73,    74,
+      75,    59,    52,    61,    56,    73,    74,    75,    56,    53,
+     249,    55,    58,    21,   238,    59,    57,    61,    57,   243,
+      52,   245,    56,   249,    53,   249,    56,    60,   252,    52,
+     315,    52,    58,    58,    56,   259,    32,   261,    57,   286,
+      51,     6,    41,    45,     9,    10,    11,   286,    18,    14,
+      18,   245,    66,    67,    68,    69,    70,    32,    52,    24,
+     286,    56,   286,    53,   349,   289,    58,    60,    33,    58,
+     309,   295,   296,    38,   298,    40,    53,    58,    58,    32,
+      58,    60,    53,   309,    56,   309,    52,    21,   312,    52,
+      55,    20,    57,   238,    56,   289,   127,    51,    41,   130,
+     245,   295,    18,   134,   298,   352,   330,    18,    73,   333,
+      75,   358,    52,   352,   361,    56,    18,    20,    57,   358,
+      58,    18,   361,    31,   381,    16,   352,    26,   352,    39,
+      76,   308,   358,   400,   358,   361,   360,   361,   393,   186,
+     401,    37,   343,   333,   289,   285,   393,   371,   372,   356,
+     295,   296,   238,   298,   393,   305,   373,   133,   232,   337,
+     383,   361,   386,   387,   388,   398,   360,   393,   125,   393,
+     313,   261,    73,   397,   192,   120,   400,    -1,   372,   210,
+       6,   405,   247,     9,    10,    11,   410,   400,   333,    -1,
+      -1,    -1,   386,   387,   388,    -1,    -1,    23,    -1,    -1,
+     231,   232,    -1,   397,    -1,    31,    -1,    -1,    -1,   240,
+      -1,   405,    -1,    -1,    -1,   360,   410,    43,    -1,    -1,
+      -1,    -1,    -1,    -1,    -1,    -1,   371,   372,    29,    -1,
+      -1,    57,    58,    59,    -1,    -1,    -1,    -1,    64,    -1,
+      -1,   386,   387,   388,    -1,    -1,    -1,    73,    74,    75,
+      -1,     6,   397,    -1,     9,    10,    11,   288,    -1,    -1,
+     405,    -1,    -1,   294,    -1,   410,    -1,    -1,    23,    -1,
+      -1,    -1,    73,    74,    75,    -1,    31,    78,    79,    80,
+      81,    82,    83,    -1,    -1,    -1,   317,    -1,    43,    -1,
+      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
+     331,   332,    57,    -1,    59,     6,   337,    -1,     9,    64,
+      -1,    -1,    -1,    -1,    15,    16,    -1,    -1,    73,    74,
+      75,    -1,     6,    -1,    25,     9,    27,    28,    -1,    -1,
+      -1,    15,    16,    34,    35,   366,    -1,    -1,    39,     6,
+      -1,    25,    -1,    27,    28,    -1,    47,    48,    15,    16,
+      34,    35,    -1,    -1,   385,    39,     6,    -1,    25,    -1,
+      27,    28,    -1,    47,    48,    15,    16,    34,    35,    -1,
+      -1,    -1,    39,   404,    -1,    25,    -1,    27,    28,    -1,
+      47,    48,    -1,    -1,    34,    35,    -1,    -1,    -1,    39,
+      -1,    -1,    -1,    -1,    -1,    -1,    -1,    47,    48
 };
 
 /* YYSTOS[STATE-NUM] -- The (internal number of the) accessing
    symbol of state STATE-NUM.  */
 static const yytype_uint8 yystos[] =
 {
-       0,    86,    87,     0,    35,   210,   211,     6,    95,    30,
-     195,    54,    55,     9,    88,    89,    17,   196,    95,   107,
-      51,    90,    54,    95,   102,   197,    42,   199,    51,   108,
-      56,    88,    76,    54,    95,   104,   200,    44,   202,    95,
-      54,    90,    10,    11,    71,    73,    88,    91,    92,    93,
-      94,    95,    97,    98,    99,   102,   198,    76,    54,   107,
-     128,   203,    26,    34,   184,   185,   205,   207,   208,   209,
-     108,    92,    95,    54,    14,    24,    33,    36,    38,    53,
-      55,    95,    99,   103,   105,   106,   109,   110,   111,   112,
-     113,   116,   125,   126,   127,   104,   201,    50,    54,    95,
-      95,   195,    15,   164,    54,   195,   198,    57,    32,   112,
-      16,   107,   117,   118,   120,   121,    32,    95,   107,    52,
-      54,   103,   128,   204,    55,    55,   196,    16,    25,    27,
-      28,    37,    45,    46,    88,    95,   129,   132,   133,   134,
-     135,   136,   148,   150,   151,   152,   153,   154,   155,   156,
-     157,   158,   159,   160,   161,   162,   163,   164,   165,   166,
-     167,   168,   169,   170,   174,   175,   176,   177,   178,   179,
-     180,   182,   183,    59,   206,   207,   196,   105,   114,   103,
-      95,    50,    21,    54,   119,   105,    56,    99,   201,    54,
-      26,    34,    44,   107,   186,   187,   188,   190,   191,   192,
-     193,   194,   186,   199,    23,    31,    41,    55,    57,    62,
-      71,    72,    73,    92,    94,    95,    96,   129,   137,   138,
-     139,   140,   141,   145,   147,    95,    88,   141,   148,   141,
-      95,   129,   130,    50,    55,    49,    53,    57,    59,    21,
-      54,   149,    54,   199,    51,   115,    58,    50,   103,   118,
-     204,   194,   107,   194,    50,    56,    54,   189,    56,   202,
-     141,    58,   141,   142,   137,    55,    64,    65,    66,    67,
-      68,   144,    29,    76,    77,    78,    79,    80,    81,   145,
-     146,    32,   139,    49,    39,    43,    18,    51,   131,    18,
-     155,   156,   142,   141,   142,    95,   150,   206,   202,   105,
-      32,    95,    95,    50,   187,    54,   205,    56,    51,   143,
-      58,    56,   142,   137,   139,   140,    99,   100,   171,   172,
-     141,    25,    28,    45,    46,    88,   151,   141,   151,   152,
-     129,   151,   152,    56,    58,   149,   205,   115,   103,    32,
-      95,   189,   164,   141,    56,    51,   101,    50,    54,   173,
-      21,    19,    40,   181,    95,   141,   141,   130,    50,    20,
-     131,   164,   100,   122,   123,    54,   143,    99,   150,   171,
-     141,    49,    39,    18,    18,   151,   152,    50,    54,   124,
-     101,   173,    18,   141,   151,    55,   122,   151,   152,   181,
-      20,   117,   124,   141,    56,    18
+       0,    88,    89,     0,    37,   216,   217,     6,    97,    30,
+     201,    56,    57,     9,    90,    91,    17,   202,    97,   109,
+      53,    92,    56,    97,   104,   203,    44,   205,    53,   110,
+      58,    90,    78,    56,    97,   106,   206,    46,   208,    97,
+      56,    92,    10,    11,    73,    75,    90,    93,    94,    95,
+      96,    97,    99,   100,   101,   104,   204,    78,    56,   109,
+     130,   209,    26,    36,   190,   191,   211,   213,   214,   215,
+     110,    94,    97,    56,    14,    24,    33,    38,    40,    55,
+      57,    97,   101,   105,   107,   108,   111,   112,   113,   114,
+     115,   118,   127,   128,   129,   106,   207,    52,    56,    97,
+      97,   201,    15,   170,    56,   201,   204,    59,    32,   114,
+      16,   109,   119,   120,   122,   123,    32,    97,   109,    54,
+      56,   105,   130,   210,    57,    57,   202,    16,    25,    27,
+      28,    34,    35,    39,    47,    48,    90,    97,   131,   134,
+     135,   136,   137,   138,   150,   152,   153,   154,   155,   156,
+     157,   158,   159,   160,   161,   165,   166,   167,   168,   169,
+     170,   171,   172,   173,   174,   175,   176,   180,   181,   182,
+     183,   184,   185,   186,   188,   189,    61,   212,   213,   202,
+     107,   116,   105,    97,    52,    21,    56,   121,   107,    58,
+     101,   207,    56,    26,    36,    46,   109,   192,   193,   194,
+     196,   197,   198,   199,   200,   192,   205,    23,    31,    43,
+      57,    59,    64,    73,    74,    75,    94,    96,    97,    98,
+     131,   139,   140,   141,   142,   143,   147,   149,    97,    90,
+     143,    57,    57,   150,   143,    97,   131,   132,    52,    57,
+      51,    55,    59,    61,    21,    56,   151,    56,   205,    53,
+     117,    60,    52,   105,   120,   210,   200,   109,   200,    52,
+      58,    56,   195,    58,   208,   143,    60,   143,   144,   139,
+      57,    66,    67,    68,    69,    70,   146,    29,    78,    79,
+      80,    81,    82,    83,   147,   148,    32,   141,    51,    41,
+     143,   162,   164,   162,    45,    18,    53,   133,    18,   157,
+     158,   144,   143,   144,    97,   152,   212,   208,   107,    32,
+      97,    97,    52,   193,    56,   211,    58,    53,   145,    60,
+      58,   144,   139,   141,   142,   101,   102,   177,   178,   143,
+      25,    28,    47,    48,    90,   153,    58,    53,   163,    58,
+     143,   153,   154,   131,   153,   154,    58,    60,   151,   211,
+     117,   105,    32,    97,   195,   170,   143,    58,    53,   103,
+      52,    56,   179,    21,    19,    42,   187,    97,   143,   143,
+     132,    52,    20,   164,   133,   170,   102,   124,   125,    56,
+     145,   101,   152,   177,   143,    51,    41,    18,    18,   153,
+     154,   163,    52,    56,   126,   103,   179,    18,   143,   153,
+      57,   124,   153,   154,   187,    20,   119,   126,   143,    58,
+      18
 };
 
 #define yyerrok		(yyerrstatus = 0)
@@ -2461,20 +2718,31 @@ yyreduce:
         case 2:
 
 /* Line 1455 of yacc.c  */
-#line 730 "pascal.y"
+#line 969 "pascal.y"
     { 
       /* Create a new symbol table. */
-      stab = symtab_new (); 
+      stab = symtab_new ();
+
+      /* Start a new activation record. */
+      ar_enter ();
+
+      /* Allocate memory for instructions array */
+      instructions = (Instruction *) calloc (MAX_INSTRUCTIONS, sizeof
+      (Instruction));
+      
       int i;
-      /* Put all basic types in the symbol table. */
+      
+      /* Establish basic types. */
       char *type_names[]  = {"boolean", "integer", "real", "char", "string"};
       TypeID types[] = {TYPE_BOOLEAN, TYPE_INTEGER, TYPE_REAL, TYPE_CHAR,
 TYPE_STRING};
+
+      /* Put all basic types in the symbol table. */
       for (i = 0; i < 5; i++)
       {
-        Type *type_struct = new_type_struct (types[i]);
         AttributeSet *type_attributes = new_attribute_set (1);
-        set_p_attribute (type_attributes, "type", type_struct);
+      	Type *type = new_type (types[i]);       
+      	set_p_attribute (type_attributes, "type", type);
         symtab_put (stab, type_names[i], type_attributes);
       } 
 
@@ -2485,20 +2753,28 @@ TYPE_STRING};
   case 3:
 
 /* Line 1455 of yacc.c  */
-#line 749 "pascal.y"
-    { tree = (yyvsp[(2) - (2)]); ;}
+#line 999 "pascal.y"
+    { 
+      tree = (yyvsp[(2) - (2)]); 
+      generate_instruction (EXIT, new_iconstant (0), NULL, NULL);
+    ;}
     break;
 
   case 4:
 
 /* Line 1455 of yacc.c  */
-#line 760 "pascal.y"
+#line 1013 "pascal.y"
     {
       /* Set the type of the integer constant. */
-      AttributeSet *attributes = new_attribute_set (2);
-      Type *type_struct = new_type_struct (TYPE_INTEGER);
-      set_p_attribute (attributes, "type", type_struct);
-      set_i_attribute (attributes, "ivalue", atoi (yytext));
+      AttributeSet *attributes = new_attribute_set (3);
+      Type *type = new_type (TYPE_INTEGER);
+      set_p_attribute (attributes, "type", type);
+      int integer_value = atoi (yytext);
+      set_i_attribute (attributes, "ivalue", integer_value);
+
+      /* Store the address of the integer constant. */
+      set_p_attribute (attributes, "address", new_iconstant (integer_value));
+      
       Node *node = new_tnode (_INTEGER, attributes);
       (yyval) = node;
     ;}
@@ -2507,7 +2783,7 @@ TYPE_STRING};
   case 5:
 
 /* Line 1455 of yacc.c  */
-#line 773 "pascal.y"
+#line 1031 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = list2node (_unsigned_integer_list, attributes, cons ((yyvsp[(1) - (2)]), (yyvsp[(2) - (2)])));
@@ -2517,14 +2793,14 @@ TYPE_STRING};
   case 6:
 
 /* Line 1455 of yacc.c  */
-#line 781 "pascal.y"
+#line 1039 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 7:
 
 /* Line 1455 of yacc.c  */
-#line 783 "pascal.y"
+#line 1041 "pascal.y"
     {
       (yyval) = cons ((yyvsp[(2) - (3)]), (yyvsp[(3) - (3)]));
     ;}
@@ -2533,14 +2809,18 @@ TYPE_STRING};
   case 8:
 
 /* Line 1455 of yacc.c  */
-#line 790 "pascal.y"
+#line 1048 "pascal.y"
     {
-      /* Set the type and value of the real constant. */
-      AttributeSet *attributes = new_attribute_set (2);
-      struct Type *type_struct = malloc (sizeof (struct Type));
-      type_struct->type = TYPE_REAL;
-      set_p_attribute (attributes, "type", type_struct);
-      set_r_attribute (attributes, "rvalue", atof (yytext));
+      /* Store the type and value of the real constant in the parse tree. */
+      AttributeSet *attributes = new_attribute_set (3);
+      Type *type = new_type (TYPE_REAL);
+      set_p_attribute (attributes, "type", type);
+      float real_value = atof (yytext);
+      set_r_attribute (attributes, "rvalue", real_value);
+
+      /* Store the address of the real constant. */
+      set_p_attribute (attributes, "address", new_fconstant (real_value));
+
       Node *node = new_tnode (_REAL, attributes);
       (yyval) = node;
     ;}
@@ -2549,27 +2829,32 @@ TYPE_STRING};
   case 11:
 
 /* Line 1455 of yacc.c  */
-#line 809 "pascal.y"
+#line 1071 "pascal.y"
     { (yyval) = new_tnode (_PLUS, new_attribute_set (0)); ;}
     break;
 
   case 12:
 
 /* Line 1455 of yacc.c  */
-#line 811 "pascal.y"
+#line 1073 "pascal.y"
     { (yyval) = new_tnode (_DASH, new_attribute_set (0)); ;}
     break;
 
   case 13:
 
 /* Line 1455 of yacc.c  */
-#line 816 "pascal.y"
+#line 1078 "pascal.y"
     {
       /* Set the type of the string constant. */
-      AttributeSet *attributes = new_attribute_set (2);
-      Type *type_struct = new_type_struct (TYPE_STRING);
-      set_p_attribute (attributes, "type", type_struct);
-      set_s_attribute (attributes, "svalue", strdup (yytext));
+      AttributeSet *attributes = new_attribute_set (3);
+      Type *type = new_type (TYPE_STRING);
+      set_p_attribute (attributes, "type", type);
+      char *string_value = strdup (yytext);
+      set_s_attribute (attributes, "svalue", string_value);
+
+      /* Store the address of the string constant. */
+      set_p_attribute (attributes, "address", new_sconstant (string_value));
+      
       Node *node = new_tnode (_STRING, attributes);
       (yyval) = node;
     ;}
@@ -2578,7 +2863,7 @@ TYPE_STRING};
   case 14:
 
 /* Line 1455 of yacc.c  */
-#line 831 "pascal.y"
+#line 1098 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (1);
       set_s_attribute (attributes, "name", strdup (yytext));
@@ -2590,42 +2875,42 @@ TYPE_STRING};
   case 15:
 
 /* Line 1455 of yacc.c  */
-#line 848 "pascal.y"
+#line 1115 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 16:
 
 /* Line 1455 of yacc.c  */
-#line 850 "pascal.y"
+#line 1117 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 17:
 
 /* Line 1455 of yacc.c  */
-#line 852 "pascal.y"
+#line 1119 "pascal.y"
     { (yyval) = new_tnode (_NIL, new_attribute_set (0)); ;}
     break;
 
   case 18:
 
 /* Line 1455 of yacc.c  */
-#line 854 "pascal.y"
+#line 1121 "pascal.y"
     { (yyval) = new_tnode (_TRUE, new_attribute_set (0)); ;}
     break;
 
   case 19:
 
 /* Line 1455 of yacc.c  */
-#line 856 "pascal.y"
+#line 1123 "pascal.y"
     { (yyval) = new_tnode (_FALSE, new_attribute_set (0)); ;}
     break;
 
   case 20:
 
 /* Line 1455 of yacc.c  */
-#line 861 "pascal.y"
+#line 1128 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_signed_number, attributes, 2, (yyvsp[(1) - (2)]), (yyvsp[(2) - (2)]));
@@ -2635,7 +2920,7 @@ TYPE_STRING};
   case 21:
 
 /* Line 1455 of yacc.c  */
-#line 869 "pascal.y"
+#line 1136 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_signed_identifier, attributes, 2, (yyvsp[(1) - (2)]), (yyvsp[(2) - (2)]));
@@ -2645,42 +2930,42 @@ TYPE_STRING};
   case 22:
 
 /* Line 1455 of yacc.c  */
-#line 877 "pascal.y"
+#line 1144 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 23:
 
 /* Line 1455 of yacc.c  */
-#line 879 "pascal.y"
+#line 1146 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 24:
 
 /* Line 1455 of yacc.c  */
-#line 881 "pascal.y"
+#line 1148 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 25:
 
 /* Line 1455 of yacc.c  */
-#line 883 "pascal.y"
+#line 1150 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 26:
 
 /* Line 1455 of yacc.c  */
-#line 885 "pascal.y"
+#line 1152 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 27:
 
 /* Line 1455 of yacc.c  */
-#line 890 "pascal.y"
+#line 1157 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = list2node (_constant_list, attributes, cons ((yyvsp[(1) - (2)]), (yyvsp[(2) - (2)])));
@@ -2690,14 +2975,14 @@ TYPE_STRING};
   case 28:
 
 /* Line 1455 of yacc.c  */
-#line 898 "pascal.y"
+#line 1165 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 29:
 
 /* Line 1455 of yacc.c  */
-#line 900 "pascal.y"
+#line 1167 "pascal.y"
     {
       (yyval) = cons ((yyvsp[(2) - (3)]), (yyvsp[(3) - (3)]));
     ;}
@@ -2706,17 +2991,15 @@ TYPE_STRING};
   case 30:
 
 /* Line 1455 of yacc.c  */
-#line 907 "pascal.y"
+#line 1174 "pascal.y"
     {
-      
-      /* Get the name of the id. */
-      //char *id_name = get_s_attribute ($1->attributes, "name");
-
       /* Put the new constant in the symbol table. */
       AttributeSet *attributes = new_attribute_set (1);
    
-      /* Retrieve the value of the constant. */
-
+      /* Generate code for constant definition. */
+      StacParameter *address = translate_expr (_EQ, (yyvsp[(1) - (3)]), (yyvsp[(3) - (3)]));
+      set_p_attribute (attributes, "address", address);
+      
       (yyval) = new_interior_node (_constant_definition, attributes, 2, (yyvsp[(1) - (3)]), (yyvsp[(3) - (3)]));
     ;}
     break;
@@ -2724,37 +3007,37 @@ TYPE_STRING};
   case 31:
 
 /* Line 1455 of yacc.c  */
-#line 925 "pascal.y"
+#line 1190 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 32:
 
 /* Line 1455 of yacc.c  */
-#line 927 "pascal.y"
+#line 1192 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 33:
 
 /* Line 1455 of yacc.c  */
-#line 929 "pascal.y"
+#line 1194 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 34:
 
 /* Line 1455 of yacc.c  */
-#line 934 "pascal.y"
+#line 1199 "pascal.y"
     {
       /* Get the name of the id. */
       char *id_name = get_s_attribute ((yyvsp[(1) - (3)])->attributes, "name");
 
       /* Put the new type in the symbol table. */
-      TypeID alias_type = type ((yyvsp[(3) - (3)]));
-      Type *type_struct = new_type_struct (alias_type);
+      TypeID alias_type = get_type_id ((yyvsp[(3) - (3)]));
+      Type *type = new_type (alias_type);
       AttributeSet *type_attributes = new_attribute_set (1);
-      set_p_attribute (type_attributes, "type", type_struct);
+      set_p_attribute (type_attributes, "type", type);
       symtab_put (stab, id_name, type_attributes);
       
       AttributeSet *attributes = new_attribute_set (0);
@@ -2765,34 +3048,33 @@ TYPE_STRING};
   case 35:
 
 /* Line 1455 of yacc.c  */
-#line 954 "pascal.y"
+#line 1219 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 36:
 
 /* Line 1455 of yacc.c  */
-#line 956 "pascal.y"
+#line 1221 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 37:
 
 /* Line 1455 of yacc.c  */
-#line 958 "pascal.y"
+#line 1223 "pascal.y"
     { 
       /* Get the name of the id (new type) from its attributes. */
       char *id_name = get_s_attribute ((yyvsp[(1) - (1)])->attributes, "name");
 
       /* Create a new type struct. */
-      struct Type *type_struct = malloc (sizeof (struct Type));
       AttributeSet *id_attributes = symtab_get (stab, id_name);
-      type_struct = get_p_attribute (id_attributes, "type");
-      if (type_struct == NULL)
+      Type *type = get_p_attribute (id_attributes, "type");
+      if (type == NULL)
         fprintf (stderr, "Not a valid type name.\n");
 
       AttributeSet *attributes = new_attribute_set (1);
-      set_p_attribute (attributes, "type", type_struct);
+      set_p_attribute (attributes, "type", type);
       (yyval) = new_interior_node (_simple_type, attributes, 1, (yyvsp[(1) - (1)]));
     ;}
     break;
@@ -2800,7 +3082,7 @@ TYPE_STRING};
   case 38:
 
 /* Line 1455 of yacc.c  */
-#line 979 "pascal.y"
+#line 1243 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_scalar_type, attributes, 1, (yyvsp[(2) - (3)]));
@@ -2810,9 +3092,8 @@ TYPE_STRING};
   case 39:
 
 /* Line 1455 of yacc.c  */
-#line 987 "pascal.y"
+#line 1251 "pascal.y"
     { 
-      /* Associate a type with each id in idlist. */ 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = list2node (_idlist, attributes, cons ((yyvsp[(1) - (2)]), (yyvsp[(2) - (2)])));
     ;}
@@ -2821,23 +3102,23 @@ TYPE_STRING};
   case 40:
 
 /* Line 1455 of yacc.c  */
-#line 996 "pascal.y"
-    { printf ("epsilon in tail\n"); (yyval) = new_epsilon (); ;}
+#line 1259 "pascal.y"
+    { (yyval) = new_epsilon (); ;}
     break;
 
   case 41:
 
 /* Line 1455 of yacc.c  */
-#line 998 "pascal.y"
+#line 1261 "pascal.y"
     { (yyval) = cons ((yyvsp[(2) - (3)]), (yyvsp[(3) - (3)])); ;}
     break;
 
   case 42:
 
 /* Line 1455 of yacc.c  */
-#line 1007 "pascal.y"
+#line 1270 "pascal.y"
     {
-      /* Create a type_struct for the subrange type. */
+      /* Create a type for the subrange type. */
       struct SubrangeType *subrange_struct = 
                                    malloc (sizeof (struct SubrangeType));
 
@@ -2848,39 +3129,39 @@ TYPE_STRING};
 
       printf ("in subrange\n");
       /* Types are compatible, so assign the type to subrange. */
-      Type *const_type_struct = get_p_attribute ((yyvsp[(1) - (3)])->attributes, "type");
-      subrange_struct->type = const_type_struct;
+      Type *const_type = get_p_attribute ((yyvsp[(1) - (3)])->attributes, "type");
+      subrange_struct->type = const_type;
 
       /* Retrieve the constant values based on the type. */
       Attribute lower;
       Attribute upper;
 
-      switch (const_type_struct->type)
-      {
-       case (TYPE_INTEGER):
-         lower.ival = get_i_attribute ((yyvsp[(1) - (3)])->attributes, "ivalue");
-         upper.ival = get_i_attribute ((yyvsp[(3) - (3)])->attributes, "ivalue");
-         break;
-       case (TYPE_REAL):
-         lower.dval = get_r_attribute ((yyvsp[(1) - (3)])->attributes, "rvalue");
-         upper.dval = get_r_attribute ((yyvsp[(3) - (3)])->attributes, "rvalue");
-         break;
-       case (TYPE_STRING):
-         lower.sval = get_s_attribute ((yyvsp[(1) - (3)])->attributes, "svalue");
-         upper.sval = get_s_attribute ((yyvsp[(3) - (3)])->attributes, "svalue");
-         break;
-       default:
-         fprintf (stderr, "Constant has the wrong type!\n");
-      }
+      switch (const_type->type_id)
+	{
+	case (TYPE_INTEGER):
+	  lower.ival = get_i_attribute ((yyvsp[(1) - (3)])->attributes, "ivalue");
+	  upper.ival = get_i_attribute ((yyvsp[(3) - (3)])->attributes, "ivalue");
+	  break;
+	case (TYPE_REAL):
+	  lower.dval = get_r_attribute ((yyvsp[(1) - (3)])->attributes, "rvalue");
+	  upper.dval = get_r_attribute ((yyvsp[(3) - (3)])->attributes, "rvalue");
+	  break;
+	case (TYPE_STRING):
+	  lower.sval = get_s_attribute ((yyvsp[(1) - (3)])->attributes, "svalue");
+	  upper.sval = get_s_attribute ((yyvsp[(3) - (3)])->attributes, "svalue");
+	  break;
+	default:
+	  fprintf (stderr, "Constant has the wrong type!\n");
+	}
        
       subrange_struct->lower = lower;
       subrange_struct->upper = upper;
 
       /* Store the subrange attributes with the node. */
       AttributeSet *subrange_attributes = new_attribute_set (1);
-      Type *type_struct = new_type_struct (TYPE_SUBRANGE);
-      type_struct->info.subrange = subrange_struct;
-      set_p_attribute (subrange_attributes, "type", type_struct);
+      Type *type = new_type (TYPE_SUBRANGE);
+      type->info.subrange = subrange_struct;
+      set_p_attribute (subrange_attributes, "type", type);
       (yyval) = new_interior_node (_subrange_type, subrange_attributes, 2, (yyvsp[(1) - (3)]), (yyvsp[(3) - (3)]));
     ;}
     break;
@@ -2888,21 +3169,21 @@ TYPE_STRING};
   case 43:
 
 /* Line 1455 of yacc.c  */
-#line 1060 "pascal.y"
+#line 1323 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 44:
 
 /* Line 1455 of yacc.c  */
-#line 1062 "pascal.y"
+#line 1325 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 45:
 
 /* Line 1455 of yacc.c  */
-#line 1067 "pascal.y"
+#line 1330 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_packed_structured_type, attributes, 1, (yyvsp[(2) - (2)]));
@@ -2912,39 +3193,39 @@ TYPE_STRING};
   case 46:
 
 /* Line 1455 of yacc.c  */
-#line 1075 "pascal.y"
+#line 1338 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 47:
 
 /* Line 1455 of yacc.c  */
-#line 1077 "pascal.y"
+#line 1340 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 48:
 
 /* Line 1455 of yacc.c  */
-#line 1079 "pascal.y"
+#line 1342 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 49:
 
 /* Line 1455 of yacc.c  */
-#line 1081 "pascal.y"
+#line 1344 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 50:
 
 /* Line 1455 of yacc.c  */
-#line 1088 "pascal.y"
+#line 1351 "pascal.y"
     {
       int i;
 
-      /* Create a type_struct for the array type. */
+      /* Create a type for the array type. */
       struct ArrayType *array_struct = malloc (sizeof (struct ArrayType));
 
       /* Get the component type. */
@@ -2970,9 +3251,9 @@ TYPE_STRING};
 
       /* Store the array attributes with the node. */
       AttributeSet *array_attributes = new_attribute_set (1);
-      Type *type_struct = new_type_struct (TYPE_ARRAY);
-      type_struct->info.array = array_struct;
-      set_p_attribute (array_attributes, "type", type_struct);
+      Type *type = new_type (TYPE_ARRAY);
+      type->info.array = array_struct;
+      set_p_attribute (array_attributes, "type", type);
       (yyval) = new_interior_node (_array_type, array_attributes, 2, (yyvsp[(3) - (6)]), (yyvsp[(6) - (6)]));
     ;}
     break;
@@ -2980,7 +3261,7 @@ TYPE_STRING};
   case 51:
 
 /* Line 1455 of yacc.c  */
-#line 1126 "pascal.y"
+#line 1389 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = list2node (_simple_type_list, attributes, cons ((yyvsp[(1) - (2)]), (yyvsp[(2) - (2)])));
@@ -2990,21 +3271,21 @@ TYPE_STRING};
   case 52:
 
 /* Line 1455 of yacc.c  */
-#line 1134 "pascal.y"
+#line 1397 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 53:
 
 /* Line 1455 of yacc.c  */
-#line 1136 "pascal.y"
+#line 1399 "pascal.y"
     { (yyval) = cons ((yyvsp[(2) - (3)]), (yyvsp[(3) - (3)])); ;}
     break;
 
   case 54:
 
 /* Line 1455 of yacc.c  */
-#line 1143 "pascal.y"
+#line 1406 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_record_type, attributes, 1, (yyvsp[(2) - (3)]));
@@ -3014,7 +3295,7 @@ TYPE_STRING};
   case 55:
 
 /* Line 1455 of yacc.c  */
-#line 1164 "pascal.y"
+#line 1427 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = (yyvsp[(1) - (1)]);
@@ -3027,7 +3308,7 @@ TYPE_STRING};
   case 56:
 
 /* Line 1455 of yacc.c  */
-#line 1175 "pascal.y"
+#line 1438 "pascal.y"
     {
       (yyval) = (yyvsp[(2) - (2)]);
       set_child ((yyval), 0, cons ((yyvsp[(1) - (2)]), get_child ((yyval), 0)));
@@ -3037,7 +3318,7 @@ TYPE_STRING};
   case 57:
 
 /* Line 1455 of yacc.c  */
-#line 1180 "pascal.y"
+#line 1443 "pascal.y"
     { 
       (yyval) = new_interior_node (_field_list, NULL, 2, new_epsilon (), (yyvsp[(1) - (1)]));
     ;}
@@ -3046,7 +3327,7 @@ TYPE_STRING};
   case 58:
 
 /* Line 1455 of yacc.c  */
-#line 1187 "pascal.y"
+#line 1450 "pascal.y"
     { 
       Node *left = new_epsilon ();
       Node *right = new_epsilon ();
@@ -3057,14 +3338,14 @@ TYPE_STRING};
   case 59:
 
 /* Line 1455 of yacc.c  */
-#line 1193 "pascal.y"
+#line 1456 "pascal.y"
     { (yyval) = (yyvsp[(2) - (2)]); ;}
     break;
 
   case 60:
 
 /* Line 1455 of yacc.c  */
-#line 1198 "pascal.y"
+#line 1461 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_record_section, attributes, 2, (yyvsp[(1) - (3)]), (yyvsp[(3) - (3)]));
@@ -3074,7 +3355,7 @@ TYPE_STRING};
   case 61:
 
 /* Line 1455 of yacc.c  */
-#line 1206 "pascal.y"
+#line 1469 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_variant_part, attributes, 3, (yyvsp[(2) - (6)]), (yyvsp[(4) - (6)]), (yyvsp[(6) - (6)]));
@@ -3084,7 +3365,7 @@ TYPE_STRING};
   case 62:
 
 /* Line 1455 of yacc.c  */
-#line 1214 "pascal.y"
+#line 1477 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_variant, attributes, 2, (yyvsp[(1) - (5)]), (yyvsp[(4) - (5)]));
@@ -3094,7 +3375,7 @@ TYPE_STRING};
   case 63:
 
 /* Line 1455 of yacc.c  */
-#line 1219 "pascal.y"
+#line 1482 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_variant, attributes, 1, (yyvsp[(1) - (1)]));
@@ -3104,7 +3385,7 @@ TYPE_STRING};
   case 64:
 
 /* Line 1455 of yacc.c  */
-#line 1227 "pascal.y"
+#line 1490 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = list2node (_variant_list, attributes, cons ((yyvsp[(1) - (2)]), (yyvsp[(2) - (2)])));
@@ -3114,21 +3395,21 @@ TYPE_STRING};
   case 65:
 
 /* Line 1455 of yacc.c  */
-#line 1235 "pascal.y"
+#line 1498 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 66:
 
 /* Line 1455 of yacc.c  */
-#line 1237 "pascal.y"
+#line 1500 "pascal.y"
     { (yyval) = cons ((yyvsp[(2) - (3)]), (yyvsp[(3) - (3)])); ;}
     break;
 
   case 67:
 
 /* Line 1455 of yacc.c  */
-#line 1244 "pascal.y"
+#line 1507 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_set_type, attributes, 1, (yyvsp[(3) - (3)]));
@@ -3138,7 +3419,7 @@ TYPE_STRING};
   case 68:
 
 /* Line 1455 of yacc.c  */
-#line 1254 "pascal.y"
+#line 1517 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_file_type, attributes, 1, (yyvsp[(3) - (3)]));
@@ -3148,7 +3429,7 @@ TYPE_STRING};
   case 69:
 
 /* Line 1455 of yacc.c  */
-#line 1264 "pascal.y"
+#line 1527 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_pointer_type, attributes, 1, (yyvsp[(2) - (2)]));
@@ -3158,13 +3439,13 @@ TYPE_STRING};
   case 70:
 
 /* Line 1455 of yacc.c  */
-#line 1274 "pascal.y"
+#line 1537 "pascal.y"
     {
       int i;
+   
       /* Determine how many ids to process. */
       int num_ids = get_arity ((yyvsp[(1) - (3)]));
       
-      printf ("ids: %d\n", num_ids);
       /* Put each id with its corresponding type in the symbol table. */
       for (i = 0; i < num_ids; i++)
       {                                                                              
@@ -3173,9 +3454,16 @@ TYPE_STRING};
         char *id_name = get_s_attribute (id->attributes, "name");
         
         /* Set the type. */
-        AttributeSet *sym_attributes = new_attribute_set (1);
-        Type *type_struct = new_type_struct (type ((yyvsp[(3) - (3)])));
-        set_p_attribute (sym_attributes, "type", type_struct);
+        AttributeSet *sym_attributes = new_attribute_set (2);
+        TypeID type_id = get_type_id ((yyvsp[(3) - (3)]));
+        Type *type = new_type (type_id);
+        set_p_attribute (sym_attributes, "type", type);
+
+	      /* Allocate memory for the variable based on its type 
+	       * and assign it a memory location. */
+        int offset = ar_alloc (size_of_type (type_id));
+	      StacParameter *address = new_relative (BP->info.r, offset);
+	      set_p_attribute (sym_attributes, "address", address);
 
         /* If symbol is already in scope, then throw an error. */
         if (symtab_is_in_scope (stab, id_name))
@@ -3195,28 +3483,28 @@ TYPE_STRING};
   case 71:
 
 /* Line 1455 of yacc.c  */
-#line 1309 "pascal.y"
+#line 1579 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 72:
 
 /* Line 1455 of yacc.c  */
-#line 1311 "pascal.y"
+#line 1581 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 73:
 
 /* Line 1455 of yacc.c  */
-#line 1313 "pascal.y"
+#line 1583 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 74:
 
 /* Line 1455 of yacc.c  */
-#line 1318 "pascal.y"
+#line 1588 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = list2node (_variable_list, attributes, cons ((yyvsp[(1) - (2)]), (yyvsp[(2) - (2)])));
@@ -3226,28 +3514,40 @@ TYPE_STRING};
   case 75:
 
 /* Line 1455 of yacc.c  */
-#line 1326 "pascal.y"
+#line 1596 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 76:
 
 /* Line 1455 of yacc.c  */
-#line 1328 "pascal.y"
+#line 1598 "pascal.y"
     { (yyval) = cons ((yyvsp[(2) - (3)]), (yyvsp[(3) - (3)])); ;}
     break;
 
   case 77:
 
 /* Line 1455 of yacc.c  */
-#line 1335 "pascal.y"
+#line 1605 "pascal.y"
     {
       stop_here ();
+      
+      /* Retrieve the id attributes from symbol table. */
       char *id_name = get_s_attribute ((yyvsp[(1) - (1)])->attributes, "name");
       AttributeSet *set = symtab_get (stab, id_name);
+      if (set == NULL)
+      	fprintf (stderr, "%s is not declared!\n", id_name);
+      
+      /* Set the type. */
       Type *type = get_p_attribute (set, "type");
-      AttributeSet *attributes = new_attribute_set (1);
+      AttributeSet *attributes = new_attribute_set (2);
       set_p_attribute (attributes, "type", type);
+
+      /* Retrieve the address of id from the symbol table and store it in the
+       * parse tree. */
+      StacParameter *address = get_p_attribute (set, "address");
+      set_p_attribute (attributes, "address", address);
+
       (yyval) = new_interior_node (_entire_variable, attributes, 1, (yyvsp[(1) - (1)]));
     ;}
     break;
@@ -3255,21 +3555,21 @@ TYPE_STRING};
   case 78:
 
 /* Line 1455 of yacc.c  */
-#line 1350 "pascal.y"
+#line 1632 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 79:
 
 /* Line 1455 of yacc.c  */
-#line 1352 "pascal.y"
+#line 1634 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 80:
 
 /* Line 1455 of yacc.c  */
-#line 1359 "pascal.y"
+#line 1641 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_indexed_variable, attributes, 2, (yyvsp[(1) - (4)]), (yyvsp[(3) - (4)]));
@@ -3279,7 +3579,7 @@ TYPE_STRING};
   case 81:
 
 /* Line 1455 of yacc.c  */
-#line 1369 "pascal.y"
+#line 1651 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_field_designator, attributes, 2, (yyvsp[(1) - (3)]), (yyvsp[(3) - (3)]));
@@ -3289,7 +3589,7 @@ TYPE_STRING};
   case 82:
 
 /* Line 1455 of yacc.c  */
-#line 1384 "pascal.y"
+#line 1666 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_referenced_variable, attributes, 1, (yyvsp[(1) - (2)]));
@@ -3299,44 +3599,49 @@ TYPE_STRING};
   case 83:
 
 /* Line 1455 of yacc.c  */
-#line 1394 "pascal.y"
+#line 1676 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 84:
 
 /* Line 1455 of yacc.c  */
-#line 1396 "pascal.y"
+#line 1678 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 85:
 
 /* Line 1455 of yacc.c  */
-#line 1398 "pascal.y"
+#line 1680 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 86:
 
 /* Line 1455 of yacc.c  */
-#line 1400 "pascal.y"
+#line 1682 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 87:
 
 /* Line 1455 of yacc.c  */
-#line 1402 "pascal.y"
+#line 1684 "pascal.y"
     { (yyval) = (yyvsp[(2) - (3)]); ;}
     break;
 
   case 88:
 
 /* Line 1455 of yacc.c  */
-#line 1404 "pascal.y"
+#line 1686 "pascal.y"
     {
-      AttributeSet *attributes = new_attribute_set (0);
+      AttributeSet *attributes = new_attribute_set (1);
+
+      /* A little bit of code. */
+      StacParameter *address = translate_expr (_NOT, NULL, (yyvsp[(2) - (2)]));
+      set_p_attribute (attributes, "address", address);
+
       (yyval) = new_interior_node (_negate, attributes, 1, (yyvsp[(2) - (2)]));
     ;}
     break;
@@ -3344,7 +3649,7 @@ TYPE_STRING};
   case 89:
 
 /* Line 1455 of yacc.c  */
-#line 1412 "pascal.y"
+#line 1699 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_set, attributes, 1, (yyvsp[(2) - (3)]));
@@ -3354,7 +3659,7 @@ TYPE_STRING};
   case 90:
 
 /* Line 1455 of yacc.c  */
-#line 1417 "pascal.y"
+#line 1704 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_empty_set, attributes, 0);
@@ -3364,14 +3669,13 @@ TYPE_STRING};
   case 91:
 
 /* Line 1455 of yacc.c  */
-#line 1425 "pascal.y"
+#line 1712 "pascal.y"
     {
       /* Get the mulop operator. */
       int operator = get_operator ((yyvsp[(2) - (3)]));
 
       /* Determine which operation we are performing and thus determine
-       * allowed types.  
-       * If types are inappropriate, throw an appropriate error.
+       * allowed types. If types are inappropriate, throw an appropriate error.
        */
       switch (operator)
       {
@@ -3380,29 +3684,34 @@ TYPE_STRING};
        case (_DIV):
          if (types_compatible ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])) == 0)
            fprintf (stderr, "Incompatible types in expression!\n");
-         if (type ((yyvsp[(1) - (3)])) != TYPE_INTEGER || type((yyvsp[(1) - (3)])) != TYPE_REAL)
+         if (get_type_id ((yyvsp[(1) - (3)])) != TYPE_INTEGER && get_type_id ((yyvsp[(1) - (3)])) != TYPE_REAL)
            fprintf (stderr, "Operands have incorrect type in expression.\n");
         break;
        case (_MOD):
          if (types_compatible ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])) == 0)
            fprintf (stderr, "Incompatible types in expression!\n");
-         if (type ((yyvsp[(1) - (3)])) != TYPE_INTEGER)
+         if (get_type_id ((yyvsp[(1) - (3)])) != TYPE_INTEGER)
            fprintf (stderr, "Operands have incorrect type in expression.\n");
         break;
        case (_AND):
          if (types_compatible ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])) == 0)
            fprintf (stderr, "Incompatible types in expression!\n");
-         if (type ((yyvsp[(1) - (3)])) != TYPE_BOOLEAN)
+         if (get_type_id ((yyvsp[(1) - (3)])) != TYPE_BOOLEAN)
            fprintf (stderr, "Operands have incorrect type in expression.\n");
        }
 
       /* Otherwise the types are compatible, so construct the node. */
-      AttributeSet *attributes = new_attribute_set (1);
-      Type *type_struct = new_type_struct (type ((yyvsp[(3) - (3)])));
-      set_p_attribute (attributes, "type", type_struct);
+      AttributeSet *attributes = new_attribute_set (2);
+      TypeID type_id = get_type_id ((yyvsp[(3) - (3)]));
+      Type *type = new_type (type_id);
+      set_p_attribute (attributes, "type", type);
 
-      /* We do not do operand conversion in this implementation, so just pass
-       * the children.
+      /* Generate some code. */
+      StacParameter *address = translate_expr (operator, (yyvsp[(1) - (3)]), (yyvsp[(3) - (3)]));
+      set_p_attribute (attributes, "address", address);
+
+      /* We do not perform operand type conversion in this implementation, 
+       * so just pass the children.
        */
       (yyval) = new_interior_node (_term, attributes, 3, (yyvsp[(1) - (3)]), (yyvsp[(2) - (3)]), (yyvsp[(3) - (3)]));
     ;}
@@ -3411,7 +3720,7 @@ TYPE_STRING};
   case 92:
 
 /* Line 1455 of yacc.c  */
-#line 1467 "pascal.y"
+#line 1758 "pascal.y"
     {
       (yyval) = (yyvsp[(1) - (1)]);
     ;}
@@ -3420,7 +3729,7 @@ TYPE_STRING};
   case 93:
 
 /* Line 1455 of yacc.c  */
-#line 1474 "pascal.y"
+#line 1765 "pascal.y"
     {
       /* Get the addop operator. */
       int operator = get_operator ((yyvsp[(2) - (3)]));
@@ -3433,7 +3742,7 @@ TYPE_STRING};
       {
         if (types_compatible ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])) == 0)
           fprintf (stderr, "Incompatible types in expression!\n");
-        if (type ((yyvsp[(1) - (3)])) != TYPE_INTEGER && type((yyvsp[(1) - (3)])) != TYPE_REAL)
+        if (get_type_id ((yyvsp[(1) - (3)])) != TYPE_INTEGER && get_type_id ((yyvsp[(1) - (3)])) != TYPE_REAL)
           fprintf (stderr, "Operands have incorrect type in expression.\n");
       }
       /* Otherwise, the operator is OR. */
@@ -3441,17 +3750,21 @@ TYPE_STRING};
       {
         if (types_compatible ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])) == 0)
           fprintf (stderr, "Incompatible types in expression!\n");
-        if (type ((yyvsp[(1) - (3)])) != TYPE_BOOLEAN)
+        if (get_type_id ((yyvsp[(1) - (3)])) != TYPE_BOOLEAN)
           fprintf (stderr, "Operands have incorrect type in expression.\n");
-      }
+      } // if
  
       /* Otherwise the types are compatible, so construct the node. */
-      AttributeSet *attributes = new_attribute_set (1);
-      Type *type_struct = new_type_struct (type ((yyvsp[(3) - (3)])));
-      set_p_attribute (attributes, "type", type_struct);
+      AttributeSet *attributes = new_attribute_set (2);
+      Type *type = new_type (get_type_id ((yyvsp[(3) - (3)])));
+      set_p_attribute (attributes, "type", type);
+      
+      /* Time to generate code. */
+      StacParameter *address = translate_expr (operator, (yyvsp[(1) - (3)]), (yyvsp[(3) - (3)]));
+      set_p_attribute (attributes, "address", address);
 
-      /* We do not do operand conversion in this implementation, so just pass
-       * the children.
+      /* We do not do operand type conversion in this implementation, 
+       * so just pass the children.
        */
       (yyval) = new_interior_node (_simple, attributes, 3, (yyvsp[(1) - (3)]), (yyvsp[(2) - (3)]), (yyvsp[(3) - (3)]));
     ;}
@@ -3460,37 +3773,50 @@ TYPE_STRING};
   case 94:
 
 /* Line 1455 of yacc.c  */
-#line 1509 "pascal.y"
+#line 1804 "pascal.y"
     {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = new_interior_node (_simple, attributes, 2, (yyvsp[(1) - (2)]), (yyvsp[(2) - (2)]));
+    int operator = get_operator ((yyvsp[(2) - (2)]));		
+
+    AttributeSet *attributes = new_attribute_set (1);
+        
+    /* Generate some exquisite code! */
+    StacParameter *address = translate_expr (operator, NULL, (yyvsp[(2) - (2)]));
+    set_p_attribute (attributes, "address", address);
+
+    (yyval) = new_interior_node (_simple, attributes, 2, (yyvsp[(1) - (2)]), (yyvsp[(2) - (2)]));
     ;}
     break;
 
   case 95:
 
 /* Line 1455 of yacc.c  */
-#line 1514 "pascal.y"
+#line 1816 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 96:
 
 /* Line 1455 of yacc.c  */
-#line 1519 "pascal.y"
+#line 1821 "pascal.y"
     {
+      int operator = get_operator ((yyvsp[(2) - (3)]));
+	
       /* If types are incompatible or inappropriate, throw an appropriate 
        * error. 
        */
       if (types_compatible ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])) == 0)
         fprintf (stderr,"Incompatible types in expression!\n"); 
-      if (type ((yyvsp[(1) - (3)])) != TYPE_INTEGER || type((yyvsp[(1) - (3)])) != TYPE_REAL)
+      if (get_type_id ((yyvsp[(1) - (3)])) != TYPE_INTEGER && get_type_id ((yyvsp[(1) - (3)])) != TYPE_REAL)
         fprintf (stderr, "Operands have incorrect type in expression.\n");
 
       /* Otherwise the types are compatible, so construct the node. */
-      AttributeSet *attributes = new_attribute_set (1);
-      Type *type_struct = new_type_struct (type ((yyvsp[(3) - (3)])));
-      set_p_attribute (attributes, "type", type_struct);
+      AttributeSet *attributes = new_attribute_set (2);
+      Type *type = new_type (get_type_id ((yyvsp[(3) - (3)])));
+      set_p_attribute (attributes, "type", type);
+
+      /* Code generation! */
+      StacParameter *address = translate_expr (operator, (yyvsp[(1) - (3)]), (yyvsp[(3) - (3)]));
+      set_p_attribute (attributes, "address", address);
 
       /* We do not do operand conversion in this implementation, so just pass
        * the children.
@@ -3502,14 +3828,14 @@ TYPE_STRING};
   case 97:
 
 /* Line 1455 of yacc.c  */
-#line 1539 "pascal.y"
+#line 1847 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 98:
 
 /* Line 1455 of yacc.c  */
-#line 1544 "pascal.y"
+#line 1852 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = list2node (_expr_list, attributes, cons ((yyvsp[(1) - (2)]), (yyvsp[(2) - (2)])));
@@ -3519,21 +3845,21 @@ TYPE_STRING};
   case 99:
 
 /* Line 1455 of yacc.c  */
-#line 1552 "pascal.y"
+#line 1860 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 100:
 
 /* Line 1455 of yacc.c  */
-#line 1554 "pascal.y"
+#line 1862 "pascal.y"
     { (yyval) = cons ((yyvsp[(2) - (3)]), (yyvsp[(3) - (3)])); ;}
     break;
 
   case 101:
 
 /* Line 1455 of yacc.c  */
-#line 1565 "pascal.y"
+#line 1873 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_mulop, _STAR, attributes);
@@ -3543,7 +3869,7 @@ TYPE_STRING};
   case 102:
 
 /* Line 1455 of yacc.c  */
-#line 1570 "pascal.y"
+#line 1878 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_mulop, _SLASH, attributes);
@@ -3553,7 +3879,7 @@ TYPE_STRING};
   case 103:
 
 /* Line 1455 of yacc.c  */
-#line 1575 "pascal.y"
+#line 1883 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_mulop, _DIV, attributes);
@@ -3563,7 +3889,7 @@ TYPE_STRING};
   case 104:
 
 /* Line 1455 of yacc.c  */
-#line 1580 "pascal.y"
+#line 1888 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_mulop, _MOD, attributes);
@@ -3573,7 +3899,7 @@ TYPE_STRING};
   case 105:
 
 /* Line 1455 of yacc.c  */
-#line 1585 "pascal.y"
+#line 1893 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_mulop, _AND, attributes);
@@ -3583,7 +3909,7 @@ TYPE_STRING};
   case 106:
 
 /* Line 1455 of yacc.c  */
-#line 1595 "pascal.y"
+#line 1903 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_addop, _PLUS, attributes);
@@ -3593,7 +3919,7 @@ TYPE_STRING};
   case 107:
 
 /* Line 1455 of yacc.c  */
-#line 1600 "pascal.y"
+#line 1908 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_addop, _DASH, attributes);
@@ -3603,7 +3929,7 @@ TYPE_STRING};
   case 108:
 
 /* Line 1455 of yacc.c  */
-#line 1605 "pascal.y"
+#line 1913 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_addop, _OR, attributes);
@@ -3613,7 +3939,7 @@ TYPE_STRING};
   case 109:
 
 /* Line 1455 of yacc.c  */
-#line 1615 "pascal.y"
+#line 1923 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_relop, _LT, attributes);
@@ -3623,7 +3949,7 @@ TYPE_STRING};
   case 110:
 
 /* Line 1455 of yacc.c  */
-#line 1620 "pascal.y"
+#line 1928 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_relop, _LE, attributes);
@@ -3633,7 +3959,7 @@ TYPE_STRING};
   case 111:
 
 /* Line 1455 of yacc.c  */
-#line 1625 "pascal.y"
+#line 1933 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_relop, _EQ, attributes);
@@ -3643,7 +3969,7 @@ TYPE_STRING};
   case 112:
 
 /* Line 1455 of yacc.c  */
-#line 1630 "pascal.y"
+#line 1938 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_relop, _NE, attributes);
@@ -3653,7 +3979,7 @@ TYPE_STRING};
   case 113:
 
 /* Line 1455 of yacc.c  */
-#line 1635 "pascal.y"
+#line 1943 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_relop, _GE, attributes);
@@ -3663,7 +3989,7 @@ TYPE_STRING};
   case 114:
 
 /* Line 1455 of yacc.c  */
-#line 1640 "pascal.y"
+#line 1948 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_relop, _GT, attributes);
@@ -3673,7 +3999,7 @@ TYPE_STRING};
   case 115:
 
 /* Line 1455 of yacc.c  */
-#line 1645 "pascal.y"
+#line 1953 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = simple_unary_tree (_relop, _IN, attributes);
@@ -3683,7 +4009,7 @@ TYPE_STRING};
   case 116:
 
 /* Line 1455 of yacc.c  */
-#line 1659 "pascal.y"
+#line 1967 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_function_call, attributes, 1, (yyvsp[(1) - (3)]));
@@ -3693,7 +4019,7 @@ TYPE_STRING};
   case 117:
 
 /* Line 1455 of yacc.c  */
-#line 1664 "pascal.y"
+#line 1972 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_function_call, attributes, 2, (yyvsp[(1) - (4)]), (yyvsp[(3) - (4)]));
@@ -3703,7 +4029,7 @@ TYPE_STRING};
   case 118:
 
 /* Line 1455 of yacc.c  */
-#line 1682 "pascal.y"
+#line 1990 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = list2node (_statement_list, attributes, cons ((yyvsp[(1) - (2)]), (yyvsp[(2) - (2)])));
@@ -3713,63 +4039,63 @@ TYPE_STRING};
   case 119:
 
 /* Line 1455 of yacc.c  */
-#line 1690 "pascal.y"
+#line 1998 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 120:
 
 /* Line 1455 of yacc.c  */
-#line 1692 "pascal.y"
+#line 2000 "pascal.y"
     { (yyval) = cons ((yyvsp[(2) - (3)]), (yyvsp[(3) - (3)])); ;}
     break;
 
   case 121:
 
 /* Line 1455 of yacc.c  */
-#line 1697 "pascal.y"
+#line 2005 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 122:
 
 /* Line 1455 of yacc.c  */
-#line 1699 "pascal.y"
+#line 2007 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 123:
 
 /* Line 1455 of yacc.c  */
-#line 1704 "pascal.y"
+#line 2012 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 124:
 
 /* Line 1455 of yacc.c  */
-#line 1706 "pascal.y"
+#line 2014 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 125:
 
 /* Line 1455 of yacc.c  */
-#line 1711 "pascal.y"
+#line 2019 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 126:
 
 /* Line 1455 of yacc.c  */
-#line 1713 "pascal.y"
+#line 2021 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 127:
 
 /* Line 1455 of yacc.c  */
-#line 1718 "pascal.y"
+#line 2026 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_labeled_statement, attributes, 2, (yyvsp[(1) - (3)]), (yyvsp[(3) - (3)]));
@@ -3779,7 +4105,7 @@ TYPE_STRING};
   case 128:
 
 /* Line 1455 of yacc.c  */
-#line 1726 "pascal.y"
+#line 2034 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_labeled_statement, attributes, 2, (yyvsp[(1) - (3)]), (yyvsp[(3) - (3)]));
@@ -3789,393 +4115,531 @@ TYPE_STRING};
   case 129:
 
 /* Line 1455 of yacc.c  */
-#line 1734 "pascal.y"
+#line 2042 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 130:
 
 /* Line 1455 of yacc.c  */
-#line 1736 "pascal.y"
+#line 2044 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 131:
 
 /* Line 1455 of yacc.c  */
-#line 1741 "pascal.y"
+#line 2049 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 132:
 
 /* Line 1455 of yacc.c  */
-#line 1748 "pascal.y"
+#line 2056 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 133:
 
 /* Line 1455 of yacc.c  */
-#line 1750 "pascal.y"
+#line 2058 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 134:
 
 /* Line 1455 of yacc.c  */
-#line 1752 "pascal.y"
+#line 2060 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 135:
 
 /* Line 1455 of yacc.c  */
-#line 1754 "pascal.y"
+#line 2062 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 136:
 
 /* Line 1455 of yacc.c  */
-#line 1766 "pascal.y"
-    {
-      if (types_compatible ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])) == 0)
-        fprintf (stderr, "Expression has incompatible type in assignment!\n");
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = new_interior_node (_assignment_statement, attributes, 2, (yyvsp[(1) - (3)]), (yyvsp[(3) - (3)]));
-    ;}
+#line 2064 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 137:
 
 /* Line 1455 of yacc.c  */
-#line 1779 "pascal.y"
+#line 2076 "pascal.y"
     {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = new_interior_node (_procedure_call, attributes, 1, (yyvsp[(1) - (1)]));
+      if (types_compatible ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])) == 0)
+        fprintf (stderr, "Expression has incompatible type in assignment!\n");
+      
+      /* Determine which instruction to use. */
+      OpCode opcode;
+      switch (get_type_id ((yyvsp[(1) - (3)])))
+     	{
+       	case (TYPE_INTEGER):
+       	case (TYPE_BOOLEAN):
+       	  opcode = IMOV;
+       	  break;
+       	case (TYPE_REAL):
+       	  opcode = FMOV;
+       	  break;
+       	case (TYPE_CHAR):
+       	  opcode = CMOV;
+       	  break;
+       	case (TYPE_STRING):
+       	  opcode = SMOV;
+       	  break;
+       	default:
+       	  fprintf (stderr, "Assignment cannot be completed!\n");
+     	}
+     
+      /* Retrieve the address of the variable. */
+      StacParameter *var_address = get_p_attribute ((yyvsp[(1) - (3)])->attributes, "address");
+
+      /* Retrieve the address of the expression. */
+      StacParameter *expr_address = get_p_attribute ((yyvsp[(3) - (3)])->attributes, "address");
+
+      /* Generate code for assignment. */
+      generate_instruction (opcode, var_address, expr_address, NULL);
+
+      AttributeSet *attributes = new_attribute_set (0);	  
+      (yyval) = new_interior_node (_assignment_statement, attributes, 2, (yyvsp[(1) - (3)]), (yyvsp[(3) - (3)]));
     ;}
     break;
 
   case 138:
 
 /* Line 1455 of yacc.c  */
-#line 1784 "pascal.y"
+#line 2119 "pascal.y"
     {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = new_interior_node (_procedure_call, attributes, 2, (yyvsp[(1) - (4)]), (yyvsp[(3) - (4)]));
+      int num_write_params = get_arity ((yyvsp[(3) - (4)]));
+
+      int i; 
+      for (i = 0; i < num_write_params; i++)
+      {
+        Node *write_param = get_child ((yyvsp[(3) - (4)]), i);
+
+        /* Determine which instruction to use. */
+        OpCode opcode;
+        switch (get_type_id (write_param))
+       	{
+         	case (TYPE_INTEGER):
+         	case (TYPE_BOOLEAN):
+         	  opcode = IWRITE;
+         	  break;
+         	case (TYPE_REAL):
+         	  opcode = FWRITE;
+         	  break;
+         	case (TYPE_CHAR):
+         	  opcode = CWRITE;
+         	  break;
+         	case (TYPE_STRING):
+         	  opcode = SWRITE;
+         	  break;
+         	default:
+    	      fprintf (stderr, "Unknown type of expression to output!\n");
+       	} // switch
+
+         StacParameter *param_address = 
+                       get_p_attribute (write_param->attributes, "address");
+
+         /* Generate the code! */
+         generate_instruction (opcode, param_address, NULL, NULL);
+      } // for
+
+      AttributeSet *attributes = new_attribute_set (0);	  
+      (yyval) = new_interior_node (_output_statement, attributes, 1, (yyvsp[(3) - (4)]));
     ;}
     break;
 
   case 139:
 
 /* Line 1455 of yacc.c  */
-#line 1794 "pascal.y"
+#line 2159 "pascal.y"
     {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = new_interior_node (_goto_statement, attributes, 1, (yyvsp[(2) - (2)]));
+      int num_write_params = get_arity ((yyvsp[(3) - (4)]));
+
+      int i; 
+      for (i = 0; i < num_write_params; i++)
+      {
+        Node *write_param = get_child ((yyvsp[(3) - (4)]), i);
+
+        StacParameter *param_address = 
+                       get_p_attribute (write_param->attributes, "address");
+
+         /* Generate the code! */
+         generate_instruction (WRITELN, param_address, NULL, NULL);
+      } // for
+
+      AttributeSet *attributes = new_attribute_set (0);	  
+      (yyval) = new_interior_node (_output_statement, attributes, 1, (yyvsp[(3) - (4)]));
     ;}
     break;
 
   case 140:
 
 /* Line 1455 of yacc.c  */
-#line 1804 "pascal.y"
+#line 2181 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = new_interior_node (_empty_statement, attributes, 0);
+      (yyval) = list2node (_write_parameter_list, attributes, cons ((yyvsp[(1) - (2)]), (yyvsp[(2) - (2)])));
     ;}
     break;
 
   case 141:
 
 /* Line 1455 of yacc.c  */
-#line 1814 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
+#line 2189 "pascal.y"
+    { (yyval) = new_epsilon (); ;}
     break;
 
   case 142:
 
 /* Line 1455 of yacc.c  */
-#line 1816 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
+#line 2191 "pascal.y"
+    { (yyval) = cons ((yyvsp[(2) - (3)]), (yyvsp[(3) - (3)]));  ;}
     break;
 
   case 143:
 
 /* Line 1455 of yacc.c  */
-#line 1818 "pascal.y"
+#line 2196 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 144:
 
 /* Line 1455 of yacc.c  */
-#line 1820 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
+#line 2203 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = new_interior_node (_procedure_call, attributes, 1, (yyvsp[(1) - (1)]));
+    ;}
     break;
 
   case 145:
 
 /* Line 1455 of yacc.c  */
-#line 1825 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
+#line 2208 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = new_interior_node (_procedure_call, attributes, 2, (yyvsp[(1) - (4)]), (yyvsp[(3) - (4)]));
+    ;}
     break;
 
   case 146:
 
 /* Line 1455 of yacc.c  */
-#line 1827 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
+#line 2218 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = new_interior_node (_goto_statement, attributes, 1, (yyvsp[(2) - (2)]));
+    ;}
     break;
 
   case 147:
 
 /* Line 1455 of yacc.c  */
-#line 1829 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
+#line 2228 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = new_interior_node (_empty_statement, attributes, 0);
+    ;}
     break;
 
   case 148:
 
 /* Line 1455 of yacc.c  */
-#line 1836 "pascal.y"
-    { (yyval) = (yyvsp[(2) - (3)]); ;}
+#line 2238 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 149:
 
 /* Line 1455 of yacc.c  */
-#line 1843 "pascal.y"
+#line 2240 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 150:
 
 /* Line 1455 of yacc.c  */
-#line 1845 "pascal.y"
+#line 2242 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 151:
 
 /* Line 1455 of yacc.c  */
-#line 1850 "pascal.y"
+#line 2244 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 152:
 
 /* Line 1455 of yacc.c  */
-#line 1852 "pascal.y"
+#line 2249 "pascal.y"
     { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 153:
 
 /* Line 1455 of yacc.c  */
-#line 1859 "pascal.y"
+#line 2251 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
+    break;
+
+  case 154:
+
+/* Line 1455 of yacc.c  */
+#line 2253 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
+    break;
+
+  case 155:
+
+/* Line 1455 of yacc.c  */
+#line 2260 "pascal.y"
+    { (yyval) = (yyvsp[(2) - (3)]); ;}
+    break;
+
+  case 156:
+
+/* Line 1455 of yacc.c  */
+#line 2267 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
+    break;
+
+  case 157:
+
+/* Line 1455 of yacc.c  */
+#line 2269 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
+    break;
+
+  case 158:
+
+/* Line 1455 of yacc.c  */
+#line 2274 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
+    break;
+
+  case 159:
+
+/* Line 1455 of yacc.c  */
+#line 2276 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
+    break;
+
+  case 160:
+
+/* Line 1455 of yacc.c  */
+#line 2283 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_if_then_statement, attributes, 2, (yyvsp[(2) - (4)]), (yyvsp[(4) - (4)]));
     ;}
     break;
 
-  case 154:
+  case 161:
 
 /* Line 1455 of yacc.c  */
-#line 1867 "pascal.y"
+#line 2291 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_if_then_else_statement, attributes, 3, (yyvsp[(2) - (6)]), (yyvsp[(4) - (6)]), (yyvsp[(6) - (6)]));
     ;}
     break;
 
-  case 155:
+  case 162:
 
 /* Line 1455 of yacc.c  */
-#line 1875 "pascal.y"
+#line 2299 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_if_then_else_statement, attributes, 3, (yyvsp[(2) - (6)]), (yyvsp[(4) - (6)]), (yyvsp[(6) - (6)]));
     ;}
     break;
 
-  case 156:
+  case 163:
 
 /* Line 1455 of yacc.c  */
-#line 1886 "pascal.y"
+#line 2310 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_case_statement, attributes, 2, (yyvsp[(2) - (5)]), (yyvsp[(4) - (5)]));
     ;}
     break;
 
-  case 157:
+  case 164:
 
 /* Line 1455 of yacc.c  */
-#line 1894 "pascal.y"
+#line 2318 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_case_element, attributes, 2, (yyvsp[(1) - (3)]), (yyvsp[(3) - (3)]));
     ;}
     break;
 
-  case 158:
+  case 165:
 
 /* Line 1455 of yacc.c  */
-#line 1902 "pascal.y"
+#line 2326 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = list2node (_case_element_list, attributes, cons ((yyvsp[(1) - (2)]), (yyvsp[(2) - (2)])));
     ;}
     break;
 
-  case 159:
-
-/* Line 1455 of yacc.c  */
-#line 1910 "pascal.y"
-    { (yyval) = new_epsilon (); ;}
-    break;
-
-  case 160:
-
-/* Line 1455 of yacc.c  */
-#line 1912 "pascal.y"
-    { (yyval) = cons ((yyvsp[(2) - (3)]), (yyvsp[(3) - (3)])); ;}
-    break;
-
-  case 161:
-
-/* Line 1455 of yacc.c  */
-#line 1919 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
-    break;
-
-  case 162:
-
-/* Line 1455 of yacc.c  */
-#line 1921 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
-    break;
-
-  case 163:
-
-/* Line 1455 of yacc.c  */
-#line 1923 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
-    break;
-
-  case 164:
-
-/* Line 1455 of yacc.c  */
-#line 1928 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
-    break;
-
-  case 165:
-
-/* Line 1455 of yacc.c  */
-#line 1930 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
-    break;
-
   case 166:
 
 /* Line 1455 of yacc.c  */
-#line 1937 "pascal.y"
-    {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = new_interior_node (_while_statement, attributes, 2, (yyvsp[(2) - (4)]), (yyvsp[(4) - (4)]));
-    ;}
+#line 2334 "pascal.y"
+    { (yyval) = new_epsilon (); ;}
     break;
 
   case 167:
 
 /* Line 1455 of yacc.c  */
-#line 1945 "pascal.y"
-    {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = new_interior_node (_while_statement, attributes, 2, (yyvsp[(2) - (4)]), (yyvsp[(4) - (4)]));
-    ;}
+#line 2336 "pascal.y"
+    { (yyval) = cons ((yyvsp[(2) - (3)]), (yyvsp[(3) - (3)])); ;}
     break;
 
   case 168:
 
 /* Line 1455 of yacc.c  */
-#line 1955 "pascal.y"
-    {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = new_interior_node (_repeat_statement, attributes, 2, (yyvsp[(2) - (4)]), (yyvsp[(4) - (4)]));
-    ;}
+#line 2343 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 169:
 
 /* Line 1455 of yacc.c  */
-#line 1965 "pascal.y"
-    {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = new_interior_node (_for_statement, attributes, 5, 
-                              (yyvsp[(2) - (8)]), (yyvsp[(4) - (8)]), (yyvsp[(5) - (8)]), (yyvsp[(6) - (8)]), (yyvsp[(8) - (8)]));
-    ;}
+#line 2345 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 170:
 
 /* Line 1455 of yacc.c  */
-#line 1974 "pascal.y"
-    {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = new_interior_node (_for_statement, attributes, 5, 
-                              (yyvsp[(2) - (8)]), (yyvsp[(4) - (8)]), (yyvsp[(5) - (8)]), (yyvsp[(6) - (8)]), (yyvsp[(8) - (8)]));
-    ;}
+#line 2347 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 171:
 
 /* Line 1455 of yacc.c  */
-#line 1983 "pascal.y"
-    {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = simple_unary_tree (_direction, _TO, attributes);
-    ;}
+#line 2352 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 172:
 
 /* Line 1455 of yacc.c  */
-#line 1988 "pascal.y"
-    {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = simple_unary_tree (_direction, _DOWNTO, attributes);
-    ;}
+#line 2354 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 173:
 
 /* Line 1455 of yacc.c  */
-#line 1998 "pascal.y"
+#line 2361 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = new_interior_node (_repeat_statement, attributes, 2, (yyvsp[(2) - (4)]), (yyvsp[(4) - (4)]));
+      (yyval) = new_interior_node (_while_statement, attributes, 2, (yyvsp[(2) - (4)]), (yyvsp[(4) - (4)]));
     ;}
     break;
 
   case 174:
 
 /* Line 1455 of yacc.c  */
-#line 2006 "pascal.y"
+#line 2369 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = new_interior_node (_repeat_statement, attributes, 2, (yyvsp[(2) - (4)]), (yyvsp[(4) - (4)]));
+      (yyval) = new_interior_node (_while_statement, attributes, 2, (yyvsp[(2) - (4)]), (yyvsp[(4) - (4)]));
     ;}
     break;
 
   case 175:
 
 /* Line 1455 of yacc.c  */
-#line 2022 "pascal.y"
+#line 2379 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = new_interior_node (_repeat_statement, attributes, 2, (yyvsp[(2) - (4)]), (yyvsp[(4) - (4)]));
+    ;}
+    break;
+
+  case 176:
+
+/* Line 1455 of yacc.c  */
+#line 2389 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = new_interior_node (_for_statement, attributes, 5, 
+                              (yyvsp[(2) - (8)]), (yyvsp[(4) - (8)]), (yyvsp[(5) - (8)]), (yyvsp[(6) - (8)]), (yyvsp[(8) - (8)]));
+    ;}
+    break;
+
+  case 177:
+
+/* Line 1455 of yacc.c  */
+#line 2398 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = new_interior_node (_for_statement, attributes, 5, 
+                              (yyvsp[(2) - (8)]), (yyvsp[(4) - (8)]), (yyvsp[(5) - (8)]), (yyvsp[(6) - (8)]), (yyvsp[(8) - (8)]));
+    ;}
+    break;
+
+  case 178:
+
+/* Line 1455 of yacc.c  */
+#line 2407 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = simple_unary_tree (_direction, _TO, attributes);
+    ;}
+    break;
+
+  case 179:
+
+/* Line 1455 of yacc.c  */
+#line 2412 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = simple_unary_tree (_direction, _DOWNTO, attributes);
+    ;}
+    break;
+
+  case 180:
+
+/* Line 1455 of yacc.c  */
+#line 2422 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = new_interior_node (_repeat_statement, attributes, 2, (yyvsp[(2) - (4)]), (yyvsp[(4) - (4)]));
+    ;}
+    break;
+
+  case 181:
+
+/* Line 1455 of yacc.c  */
+#line 2430 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = new_interior_node (_repeat_statement, attributes, 2, (yyvsp[(2) - (4)]), (yyvsp[(4) - (4)]));
+    ;}
+    break;
+
+  case 182:
+
+/* Line 1455 of yacc.c  */
+#line 2446 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_procedure_declaration, attributes, 7,
@@ -4183,10 +4647,10 @@ TYPE_STRING};
     ;}
     break;
 
-  case 176:
+  case 183:
 
 /* Line 1455 of yacc.c  */
-#line 2031 "pascal.y"
+#line 2455 "pascal.y"
     {
       int i;
       Type *param_type;
@@ -4197,11 +4661,15 @@ TYPE_STRING};
 
       /* Construct the procedure type. */
       int num_params = get_num_params ();
-      Type *type_struct = function_procedure_type (NULL, num_params);
+      Type *type = function_procedure_type (NULL, num_params);
 
       /* Store info about procedure's params. */
       AttributeSet *proc_attributes = new_attribute_set (1);
-      set_p_attribute (proc_attributes, "type", type_struct);
+      set_p_attribute (proc_attributes, "type", type);
+
+      /* Store the size that needs to be allocated for the procedure's ar. */
+      /* NEED TO FILL IN! */
+      // set_p_attribute (proc_attributes, "frame_size", ...
 
       /* If procedure is already in scope, then throw an error. */
       if (symtab_is_in_scope (stab, id_name))
@@ -4217,8 +4685,8 @@ TYPE_STRING};
         for (i = 0; i < num_params; i++)
         {
           /* Get the current param attributes. */
-	  param_type = get_param_type (type_struct, i);
-	  param_name = get_param_name (type_struct, i);
+	  param_type = get_param_type (type, i);
+	  param_name = get_param_name (type, i);
 	  AttributeSet *param_attributes = new_attribute_set (1);
           set_p_attribute (param_attributes, "type", param_type);
           symtab_put (stab, param_name, param_attributes);
@@ -4231,126 +4699,123 @@ TYPE_STRING};
 
       /* Associate attributes with the node. */
       AttributeSet *node_attributes = new_attribute_set (1);
-      set_p_attribute (node_attributes, "type", type_struct);
+      set_p_attribute (node_attributes, "type", type);
       (yyval) = new_interior_node (_procedure_heading, node_attributes, 2, (yyvsp[(2) - (6)]), (yyvsp[(4) - (6)]));
-    ;}
-    break;
-
-  case 177:
-
-/* Line 1455 of yacc.c  */
-#line 2082 "pascal.y"
-    { (yyval) = new_epsilon (); ;}
-    break;
-
-  case 178:
-
-/* Line 1455 of yacc.c  */
-#line 2084 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
-    break;
-
-  case 179:
-
-/* Line 1455 of yacc.c  */
-#line 2089 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
-    break;
-
-  case 180:
-
-/* Line 1455 of yacc.c  */
-#line 2091 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
-    break;
-
-  case 181:
-
-/* Line 1455 of yacc.c  */
-#line 2093 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
-    break;
-
-  case 182:
-
-/* Line 1455 of yacc.c  */
-#line 2095 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
-    break;
-
-  case 183:
-
-/* Line 1455 of yacc.c  */
-#line 2100 "pascal.y"
-    {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = list2node (_formals_list, attributes, cons ((yyvsp[(1) - (2)]), (yyvsp[(2) - (2)])));
     ;}
     break;
 
   case 184:
 
 /* Line 1455 of yacc.c  */
-#line 2108 "pascal.y"
+#line 2510 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 185:
 
 /* Line 1455 of yacc.c  */
-#line 2110 "pascal.y"
-    { (yyval) = cons ((yyvsp[(2) - (3)]), (yyvsp[(3) - (3)])); ;}
+#line 2512 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
     break;
 
   case 186:
 
 /* Line 1455 of yacc.c  */
-#line 2115 "pascal.y"
+#line 2517 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
+    break;
+
+  case 187:
+
+/* Line 1455 of yacc.c  */
+#line 2519 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
+    break;
+
+  case 188:
+
+/* Line 1455 of yacc.c  */
+#line 2521 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
+    break;
+
+  case 189:
+
+/* Line 1455 of yacc.c  */
+#line 2523 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
+    break;
+
+  case 190:
+
+/* Line 1455 of yacc.c  */
+#line 2528 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = list2node (_formals_list, attributes, cons ((yyvsp[(1) - (2)]), (yyvsp[(2) - (2)])));
+    ;}
+    break;
+
+  case 191:
+
+/* Line 1455 of yacc.c  */
+#line 2536 "pascal.y"
+    { (yyval) = new_epsilon (); ;}
+    break;
+
+  case 192:
+
+/* Line 1455 of yacc.c  */
+#line 2538 "pascal.y"
+    { (yyval) = cons ((yyvsp[(2) - (3)]), (yyvsp[(3) - (3)])); ;}
+    break;
+
+  case 193:
+
+/* Line 1455 of yacc.c  */
+#line 2543 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_value_parameter, attributes, 1, (yyvsp[(1) - (1)]));
     ;}
     break;
 
-  case 187:
+  case 194:
 
 /* Line 1455 of yacc.c  */
-#line 2123 "pascal.y"
+#line 2551 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_variable_parameter, attributes, 1, (yyvsp[(2) - (2)]));
     ;}
     break;
 
-  case 188:
+  case 195:
 
 /* Line 1455 of yacc.c  */
-#line 2131 "pascal.y"
+#line 2559 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_function_parameter, attributes, 1, (yyvsp[(2) - (2)]));
     ;}
     break;
 
-  case 189:
+  case 196:
 
 /* Line 1455 of yacc.c  */
-#line 2139 "pascal.y"
+#line 2567 "pascal.y"
     {
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_procedure_parameter, attributes, 1, (yyvsp[(2) - (2)]));
     ;}
     break;
 
-  case 190:
+  case 197:
 
 /* Line 1455 of yacc.c  */
-#line 2147 "pascal.y"
+#line 2575 "pascal.y"
     {
       int i, len;
-      Node *id;
-      char *id_name;
-      Type *type_struct;
 
       /* Determine how many ids to process. */
       int num_ids = get_arity ((yyvsp[(1) - (3)]));
@@ -4361,19 +4826,17 @@ TYPE_STRING};
       {
         /* Same as in variable_declaration- make it into a FUNCTION! */
         /* Get the name of the id from its attributes. */
-	id = get_child ((yyvsp[(1) - (3)]), i);
+	Node *id = get_child ((yyvsp[(1) - (3)]), i);
 	len = strlen (get_s_attribute (id->attributes, "name"));
-	id_name = malloc (sizeof (char) * len);
-	id_name = get_s_attribute (id->attributes, "name");
+	char *id_name = get_s_attribute (id->attributes, "name");
 
         /* Get the type of $3 from symbol table and associate it with id. */
         char *type_name = get_s_attribute ((yyvsp[(3) - (3)])->attributes, "name");
         AttributeSet *set = symtab_get (stab, type_name);
-	type_struct = malloc (sizeof (struct Type));
-	type_struct = get_p_attribute (set, "type");
+	Type *type = get_p_attribute (set, "type");
 
         /* Place the name and type into the params array. */
-	insert_param (id_name, type_struct);
+	insert_param (id_name, type);
       }
 
       AttributeSet *attributes = new_attribute_set (0);
@@ -4381,188 +4844,187 @@ TYPE_STRING};
     ;}
     break;
 
-  case 191:
-
-/* Line 1455 of yacc.c  */
-#line 2184 "pascal.y"
-    { (yyval) = new_epsilon (); ;}
-    break;
-
-  case 192:
-
-/* Line 1455 of yacc.c  */
-#line 2187 "pascal.y"
-    { 
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = new_interior_node (_label_declaration_part, attributes, 1, (yyvsp[(2) - (3)]));
-    ;}
-    break;
-
-  case 193:
-
-/* Line 1455 of yacc.c  */
-#line 2195 "pascal.y"
-    { (yyval) = new_epsilon (); ;}
-    break;
-
-  case 194:
-
-/* Line 1455 of yacc.c  */
-#line 2198 "pascal.y"
-    {  
-     (yyval) = (yyvsp[(2) - (2)]); ;}
-    break;
-
-  case 195:
-
-/* Line 1455 of yacc.c  */
-#line 2204 "pascal.y"
-    {
-      printf ("in const def list\n");AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = list2node (_constant_definition_list, attributes, cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])));
-    ;}
-    break;
-
-  case 196:
-
-/* Line 1455 of yacc.c  */
-#line 2212 "pascal.y"
-    { (yyval) = new_epsilon (); ;}
-    break;
-
-  case 197:
-
-/* Line 1455 of yacc.c  */
-#line 2214 "pascal.y"
-    { (yyval) = cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])); ;}
-    break;
-
   case 198:
 
 /* Line 1455 of yacc.c  */
-#line 2218 "pascal.y"
+#line 2607 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 199:
 
 /* Line 1455 of yacc.c  */
-#line 2220 "pascal.y"
-    { (yyval) = (yyvsp[(2) - (2)]); ;}
+#line 2610 "pascal.y"
+    { 
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = new_interior_node (_label_declaration_part, attributes, 1, (yyvsp[(2) - (3)]));
+    ;}
     break;
 
   case 200:
 
 /* Line 1455 of yacc.c  */
-#line 2225 "pascal.y"
-    {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = list2node (_type_definition_list, attributes, cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])));
-    ;}
+#line 2618 "pascal.y"
+    { (yyval) = new_epsilon (); ;}
     break;
 
   case 201:
 
 /* Line 1455 of yacc.c  */
-#line 2233 "pascal.y"
-    { (yyval) = new_epsilon (); ;}
+#line 2621 "pascal.y"
+    {  
+     (yyval) = (yyvsp[(2) - (2)]); ;}
     break;
 
   case 202:
 
 /* Line 1455 of yacc.c  */
-#line 2235 "pascal.y"
-    { (yyval) = cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])); ;}
+#line 2627 "pascal.y"
+    {
+      printf ("in const def list\n");AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = list2node (_constant_definition_list, attributes, cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])));
+    ;}
     break;
 
   case 203:
 
 /* Line 1455 of yacc.c  */
-#line 2240 "pascal.y"
+#line 2635 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 204:
 
 /* Line 1455 of yacc.c  */
-#line 2242 "pascal.y"
-    { printf ("_VAR\n");
-      (yyval) = (yyvsp[(2) - (2)]); ;}
+#line 2637 "pascal.y"
+    { (yyval) = cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])); ;}
     break;
 
   case 205:
 
 /* Line 1455 of yacc.c  */
-#line 2248 "pascal.y"
-    {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = list2node (_variable_declaration_list, attributes, cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])));
-    ;}
+#line 2641 "pascal.y"
+    { (yyval) = new_epsilon (); ;}
     break;
 
   case 206:
 
 /* Line 1455 of yacc.c  */
-#line 2256 "pascal.y"
-    { (yyval) = new_epsilon (); ;}
+#line 2643 "pascal.y"
+    { (yyval) = (yyvsp[(2) - (2)]); ;}
     break;
 
   case 207:
 
 /* Line 1455 of yacc.c  */
-#line 2258 "pascal.y"
-    { (yyval) = cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])); ;}
+#line 2648 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = list2node (_type_definition_list, attributes, cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])));
+    ;}
     break;
 
   case 208:
 
 /* Line 1455 of yacc.c  */
-#line 2263 "pascal.y"
+#line 2656 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 209:
 
 /* Line 1455 of yacc.c  */
-#line 2265 "pascal.y"
-    {
-      AttributeSet *attributes = new_attribute_set (0);
-      (yyval) = list2node (_procedure_declaration_list, attributes, cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])));
-    ;}
+#line 2658 "pascal.y"
+    { (yyval) = cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])); ;}
     break;
 
   case 210:
 
 /* Line 1455 of yacc.c  */
-#line 2273 "pascal.y"
+#line 2663 "pascal.y"
     { (yyval) = new_epsilon (); ;}
     break;
 
   case 211:
 
 /* Line 1455 of yacc.c  */
-#line 2275 "pascal.y"
-    { (yyval) = cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])); ;}
+#line 2665 "pascal.y"
+    { (yyval) = (yyvsp[(2) - (2)]); ;}
     break;
 
   case 212:
 
 /* Line 1455 of yacc.c  */
-#line 2280 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
+#line 2670 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = list2node (_variable_declaration_list, attributes, cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])));
+    ;}
     break;
 
   case 213:
 
 /* Line 1455 of yacc.c  */
-#line 2282 "pascal.y"
-    { (yyval) = (yyvsp[(1) - (1)]); ;}
+#line 2678 "pascal.y"
+    { (yyval) = new_epsilon (); ;}
     break;
 
   case 214:
 
 /* Line 1455 of yacc.c  */
-#line 2295 "pascal.y"
+#line 2680 "pascal.y"
+    { (yyval) = cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])); ;}
+    break;
+
+  case 215:
+
+/* Line 1455 of yacc.c  */
+#line 2685 "pascal.y"
+    { (yyval) = new_epsilon (); ;}
+    break;
+
+  case 216:
+
+/* Line 1455 of yacc.c  */
+#line 2687 "pascal.y"
+    {
+      AttributeSet *attributes = new_attribute_set (0);
+      (yyval) = list2node (_procedure_declaration_list, attributes, cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])));
+    ;}
+    break;
+
+  case 217:
+
+/* Line 1455 of yacc.c  */
+#line 2695 "pascal.y"
+    { (yyval) = new_epsilon (); ;}
+    break;
+
+  case 218:
+
+/* Line 1455 of yacc.c  */
+#line 2697 "pascal.y"
+    { (yyval) = cons ((yyvsp[(1) - (3)]), (yyvsp[(3) - (3)])); ;}
+    break;
+
+  case 219:
+
+/* Line 1455 of yacc.c  */
+#line 2702 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
+    break;
+
+  case 220:
+
+/* Line 1455 of yacc.c  */
+#line 2704 "pascal.y"
+    { (yyval) = (yyvsp[(1) - (1)]); ;}
+    break;
+
+  case 221:
+
+/* Line 1455 of yacc.c  */
+#line 2717 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_function_declaration, attributes, 7,
@@ -4570,20 +5032,20 @@ TYPE_STRING};
     ;}
     break;
 
-  case 215:
+  case 222:
 
 /* Line 1455 of yacc.c  */
-#line 2304 "pascal.y"
+#line 2726 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_function_heading, attributes, 3, (yyvsp[(2) - (8)]), (yyvsp[(4) - (8)]), (yyvsp[(7) - (8)]));
     ;}
     break;
 
-  case 216:
+  case 223:
 
 /* Line 1455 of yacc.c  */
-#line 2321 "pascal.y"
+#line 2743 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_program, attributes, 7,
@@ -4591,30 +5053,30 @@ TYPE_STRING};
     ;}
     break;
 
-  case 217:
+  case 224:
 
 /* Line 1455 of yacc.c  */
-#line 2330 "pascal.y"
+#line 2752 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_program_heading, attributes, 0);
     ;}
     break;
 
-  case 218:
+  case 225:
 
 /* Line 1455 of yacc.c  */
-#line 2335 "pascal.y"
+#line 2757 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_program_heading, attributes, 1, (yyvsp[(2) - (3)]));
     ;}
     break;
 
-  case 219:
+  case 226:
 
 /* Line 1455 of yacc.c  */
-#line 2340 "pascal.y"
+#line 2762 "pascal.y"
     { 
       AttributeSet *attributes = new_attribute_set (0);
       (yyval) = new_interior_node (_program_heading, attributes, 2, (yyvsp[(2) - (6)]), (yyvsp[(4) - (6)]));
@@ -4624,7 +5086,7 @@ TYPE_STRING};
 
 
 /* Line 1455 of yacc.c  */
-#line 4628 "pascal.tab.c"
+#line 5090 "pascal.tab.c"
       default: break;
     }
   YY_SYMBOL_PRINT ("-> $$ =", yyr1[yyn], &yyval, &yyloc);
@@ -4836,8 +5298,168 @@ yyreturn:
 
 
 /* Line 1675 of yacc.c  */
-#line 2346 "pascal.y"
+#line 2768 "pascal.y"
 
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// Dealing with operators and translation
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+/* Copied from pascal.y by Sam Rebelsky. */
+/* Retrieve opcode for arithmetic expression. */
+OpCode
+get_arithmetic_opcode (int operator, TypeID type_id)
+{
+  if (type_id == TYPE_INTEGER)
+    {
+      switch (operator)
+        {
+	case (_PLUS):
+	  return IADD;
+	case _DASH:
+	  return ISUB;
+	case _STAR:
+	  return IMUL;
+	case _SLASH:
+	  return IDIV;
+	case _DIV:
+	  return IDIV;
+	case _MOD:
+	  return IMOD;
+	default:
+	  return NOOP;
+        }
+    }
+  else if (type_id == TYPE_REAL)
+    {
+      switch (operator)
+        {
+	case _PLUS:
+	  return FADD;
+	case _DASH:
+	  return FSUB;
+	case _STAR:
+	  return FMUL;
+	case _SLASH:
+	  return FDIV;
+	default:
+	  return NOOP;
+        }
+    }
+  else
+    {
+      return NOOP;
+    } // other type
+}
+
+/* STUB. */
+/* Retrieve opcode for boolean expression. */
+OpCode
+get_boolean_opcode (int operator, TypeID type_id)
+{
+  //  OpCode opcode;
+  return NOOP;
+}
+
+/* Retrieve opcode for assignment expression. */
+OpCode
+get_assignment_opcode (TypeID type_id)
+{
+  switch (type_id)
+    {
+    case TYPE_INTEGER:
+      return IMOV;
+    case TYPE_REAL:
+      return FMOV;
+    case TYPE_CHAR:
+      return CMOV;
+    case TYPE_STRING:
+      return SMOV;
+    default:
+      return NOOP;
+    }
+}
+
+/* Check if it is an arithmetic operator. */
+int
+is_arithmetic_operator (int operator)
+{
+  if ((operator <= _AND) || (ADDOPS_END <= operator))
+    return 0;
+  else 
+    return 1;
+}
+
+/* MORE OPERATORS! */
+/* Check if it is a boolean operator. */
+int
+is_boolean_operator (int operator)
+{
+  if ((operator != _AND) && (operator != _OR))
+    return 0;
+  else
+    return 1;
+}
+
+/* Check if it is an assignment operator. */
+int
+is_assignment_operator (int operator)
+{
+  if ((operator != _ASSIGN) && (operator != _EQ))
+    return 0;
+  else 
+    return 1;
+}
+
+/* Retrieve opcode given an operator. */
+OpCode
+get_opcode (int operator, TypeID operand_type)
+{
+  OpCode opcode;
+
+  /* Determine what kind of operation we want. */
+  if (is_arithmetic_operator (operator))
+    opcode = get_arithmetic_opcode (operator, operand_type);
+  else if (is_boolean_operator (operator))
+    opcode = get_boolean_opcode (operator, operand_type);
+  else if (is_assignment_operator (operator))
+    opcode = get_assignment_opcode (operand_type);
+  else 
+    { /* If no opcode, then signal error. */
+      fprintf (stderr, "This operation is invalid.\n");
+      return NOOP;
+    }
+      
+  return opcode;
+}
+  
+/* Translate an expression into three-address code. YAY! */
+StacParameter *
+translate_expr (int operator, Node *left, Node *right)
+{
+  StacParameter *left_param;
+  StacParameter *right_param;
+  
+  TypeID operand_type = get_type_id (left);
+  OpCode opcode = get_opcode (operator, operand_type);
+
+  /* Get the address from left and right operands if they exist. */
+  if (left != NULL)
+    left_param = get_p_attribute (left->attributes, "address");
+  else
+    left_param = NULL;
+  if (right != NULL)
+    right_param = get_p_attribute (right->attributes, "address");
+  else
+    right_param = NULL;
+
+  /* Generate address for expression. */
+  int offset = ar_alloc (size_of_type (operand_type));
+  StacParameter *address = new_relative (BP->info.r, offset);
+  generate_instruction (opcode, address, left_param, right_param);
+
+  return address;
+}
 
 /* Our beautiful lexer. */
 #include "lex.yy.c"

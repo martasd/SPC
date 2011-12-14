@@ -38,6 +38,8 @@ label                                    { return _LABEL; }
 nil                                      { return _NIL; }
 of                                       { return _OF; }
 packed                                   { return _PACKED; }
+write                                    { return _WRITE; }
+writeln                                  { return _WRITELN; }
 procedure                                { return _PROCEDURE; }
 program                                  { return _PROGRAM; }
 record                                   { return _RECORD; }

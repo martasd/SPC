@@ -47,20 +47,20 @@ typedef enum atttype
  * attribute.  (Alternately, you can use a TypedAttribute.)
  */
 typedef union Attribute
-  {
-    char cval;
-    int ival;
-    long lval;
-    char *sval;
-    float fval;
-    double dval;
-    void *pval; // Type* can be one of these
-  } Attribute;
+{
+  char cval;
+  int ival;
+  long lval;
+  char *sval;
+  float fval;
+  double dval;
+  void *pval; // Type* can be one of these
+} Attribute;
 
 
 /* The different kinds of types. */
 enum TypeID
-{
+  {
       // Simple types
       TYPE_BOOLEAN,
       TYPE_INTEGER,
@@ -73,8 +73,7 @@ enum TypeID
       TYPE_SUBRANGE,
       TYPE_FUNCTION,
       TYPE_PROCEDURE
-};
-        
+  };
 typedef enum TypeID TypeID;
 typedef struct Type Type;
 typedef struct Param Param;
@@ -129,7 +128,7 @@ struct SubrangeType
 
 struct Type
 {
-  TypeID type;
+  TypeID type_id;
   union
   {
     ArrayType *array;
@@ -195,7 +194,7 @@ int set_c_attribute (AttributeSet *set, char *name, char cval);
 int set_d_attribute (AttributeSet *set, char *name, double dval);
 int set_i_attribute (AttributeSet *set, char *name, int ival);
 int set_p_attribute (AttributeSet *set, char *name, void *pval);
-int set_r_attribute (AttributeSet *set, char *name, double dval);
+int set_r_attribute (AttributeSet *set, char *name, float fval);
 int set_s_attribute (AttributeSet *set, char *name, char *sval);
 
 /**

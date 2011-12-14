@@ -203,10 +203,10 @@ set_p_attribute (AttributeSet *set, char *name, void *pval)
 } // set_p_attribute
 
 int
-set_r_attribute (AttributeSet *set, char *name, double dval)
+set_r_attribute (AttributeSet *set, char *name, float fval)
 {
   Attribute att;
-  att.dval = dval;
+  att.fval = fval;
   return set_attribute (set, name, att);
 } // set_r_attribute
 

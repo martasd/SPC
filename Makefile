@@ -1,4 +1,6 @@
 # A simple Makefile for building a simple parser for Pascal.
+# author:  Sam Rebelsky (modified by Martin Dluhos)
+# revised: December 11, 2011
 
 CFLAGS=-g -Wall `pkg-config --cflags glib-2.0`
 LDFLAGS= `pkg-config --libs glib-2.0`
@@ -10,12 +12,18 @@ INCLUDED_FILES = parse-tree.h \
                  attribute.h \
                  attribute.c
 
-experiments: print-tree check-mem
+# The various .o files that are needed for executables.
+OBJECT_FILES = pascal.tab.o symtab.o staclib.o
 
-print-tree: pascal.tab.o print-tree.o symtab.o
+default: pi
+
+pi: pi.o $(OBJECT_FILES)
+		$(LINK.o) -o $@ $^
+
+print-tree: print-tree.o $(OBJECT_FILES)
 	$(LINK.o) -o $@ $^
 
-check-mem: pascal.tab.o check-mem.o symtab.o
+check-mem: check-mem.o $(OBJECT_FILES)
 	$(LINK.o) -o $@ $^
 
 pascal.tab.o: pascal.tab.c lex.yy.c $(INCLUDED_FILES)
