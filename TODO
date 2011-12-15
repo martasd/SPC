@@ -11,7 +11,12 @@
 * not started
 
 ===Phase 6: Control Structures===
-* just started
+* add boolean_expression nonterminal
+* translate following:
+** if_then_statement
+** safe_if_then_else_statement and unsafe_if_then_else_statement
+** safe_while_statement and unsafe_while_statement
+** safe_for_statement and unsafesafe_for_statement
 
 ===Phase 5: Simple Code Generation===
 * fix WRITELN
@@ -25,4 +30,19 @@
 ===Phase 2: Parsing===
 * complete (using Sam's version)
 
+translate(IF bexp THEN statement1 ELSE statement2)
+  consequent = gen_label();
+  alternate = gen_label();
+  end = gen_label ();
+  translate (bexp, consequent, alternate)
+  generate_instruction (_LABEL, consequent, NULL, NULL);
+  translate (statement1)
+  generate_instruction (JUMP, end, NULL, NULL);
+  generate_instruction (_LABEL, alternate, NULL, NULL);
+  translate (statement2)
+  generate_instruction (JUMP, end, NULL, NULL);
+  generate_instruction (_LABEL, end, NULL, NULL);
 
+translate (id, truelabel, falselabel)
+  JEQI falselabel id 0
+  JUMP truelabel

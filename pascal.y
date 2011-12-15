@@ -940,6 +940,24 @@ generate_instruction (OpCode opcode, StacParameter *param1, StacParameter *param
 }
 
 
+/* Our dataastructure for label. */
+typedef struct Label
+{
+ int num;
+ } Label;
+
+/* Keep track of how many labels have been used so far. */
+int num_labels = 0;
+
+Label *
+generate_label ()
+{
+  Label *label;
+  label->num = num_labels;
+  num_labels++;
+  return label;
+}
+
 
 /* Copied from pascal.y by Sam Rebelsky. */
 OpCode get_arithmetic_opcode (int operator, TypeID type_id);
@@ -2287,8 +2305,43 @@ if_then_statement
   ;
 
 safe_if_then_else_statement
-  : _IF expr _THEN safe_statement _ELSE safe_statement
+  : _IF 
     { 
+      /* Generate labels for consequent, alternate, and end. */
+      Label *consequent_label = generate_label ();
+      Label *alternate_label = generate_label ();
+      Label *end_label = generate_label ();
+    }
+     expr
+    {
+     /* Check if expression is a boolean expression. */
+     is_bexp ($2);
+
+     /* Generate control flow instructions. */
+     translate_bexp ($2, consequent_label, alternate_label);
+     }
+      _THEN 
+     {
+     safe_statement 
+     {
+      /* Consequent code block. */
+      generate_instruction (_LABEL, consequent_label, NULL, NULL);
+      translate ($4);
+      generate_instruction (_JUMP, end_label, NULL, NULL);
+//    StacParameter* consequent_address = get_p_attribute ($2->attributes, "address");
+     }
+      _ELSE safe_statement
+     {
+      /* Alternate code block. */
+      generate_instruction (_LABEL, alternate_label, NULL, NULL);
+      translate ($5);
+//    StacParameter* alternate_address = get_p_attribute ($2->attributes, "address");
+
+      /* We do not forget about the end label. */
+      generate_instruction (_JUMP, end_label, NULL, NULL);
+      generate_instruction (_LABEL, end_label, NULL, NULL);
+
+      /* Finally, create the node. */
       AttributeSet *attributes = new_attribute_set (0);
       $$ = new_interior_node (_if_then_else_statement, attributes, 3, $2, $4, $6);
     }
@@ -2486,12 +2539,11 @@ procedure_heading
         for (i = 0; i < num_params; i++)
         {
           /* Get the current param attributes. */
-	  param_type = get_param_type (type, i);
-	  param_name = get_param_name (type, i);
-	  AttributeSet *param_attributes = new_attribute_set (1);
+       	  param_type = get_param_type (type, i);
+       	  param_name = get_param_name (type, i);
+       	  AttributeSet *param_attributes = new_attribute_set (1);
           set_p_attribute (param_attributes, "type", param_type);
           symtab_put (stab, param_name, param_attributes);
-
         }
       }
 
@@ -2625,7 +2677,7 @@ constant_definition_part
 constant_definition_list
   : constant_definition _SEMICOLON constant_definition_list_tail
     {
-      printf ("in const def list\n");AttributeSet *attributes = new_attribute_set (0);
+      AttributeSet *attributes = new_attribute_set (0);
       $$ = list2node (_constant_definition_list, attributes, cons ($1, $3));
     }
   ;
@@ -2925,6 +2977,17 @@ translate_expr (int operator, Node *left, Node *right)
   generate_instruction (opcode, address, left_param, right_param);
 
   return address;
+}
+
+/* Check if expression is a boolean epxression. */
+is_bexp (Node *node)
+{
+ /* Check if the operator is a boolean operator. */
+
+/* Translate a boolean expression. */
+StacParameter *
+translate_bexp (Node *node, Label truelabel, Label falselabel)
+{
 }
 
 /* Our beautiful lexer. */
