@@ -939,23 +939,38 @@ generate_instruction (OpCode opcode, StacParameter *param1, StacParameter *param
   return 1;
 }
 
-
-/* Our dataastructure for label. */
-typedef struct Label
+/* Wrapper for generate_instruction, so that the generation of code for
+   statement can be postponed till we percolate up to the appropriate
+   parent. */
+void
+generate_statement (Instruction *instruction)
 {
- int num;
- } Label;
+  generate_instruction (instruction->op, instruction->params[0],
+                        instruction->params[1], instruction->params[2]);
+}
 
-/* Keep track of how many labels have been used so far. */
 int num_labels = 0;
 
-Label *
+#define LABEL_LENGTH 20
+
+/* Generate next unique label. */
+/* VERY SUBOPTIMAL: REMEMBER TO IMPROVE DESIGN OF LABEL */
+StacParameter *
 generate_label ()
 {
-  Label *label;
-  label->num = num_labels;
+  /* Allocate space for the next label. */
+  char *label;
+  label = malloc (sizeof (char) * LABEL_LENGTH);
+
+  /* Store the label number as a string. */
+  sprintf (label, "%d", num_labels);
   num_labels++;
-  return label;
+
+  /* Create a label StacParameter. */
+  StacParameter *label_param = malloc (sizeof (StacParameter));
+  label_param->type = LABEL;
+  label_param->info.s = label;
+  return label_param;
 }
 
 
@@ -968,11 +983,14 @@ int is_boolean_operator (int operator);
 int is_assignment_operator (int operator);
 OpCode get_opcode (int operator, TypeID operand);
 StacParameter *translate_expr (int operator, Node *left, Node *right);
+void translate_bexp (Node *node, StacParameter *truelabel, StacParameter *falselabel);
 
+/* STUB */
 void
 init_symtab ()
 {
 }
+
 /* Declare the symbol table for the program. */
 SymTab *stab;
 %}
@@ -1848,13 +1866,16 @@ expr
         fprintf (stderr, "Operands have incorrect type in expression.\n");
 
       /* Otherwise the types are compatible, so construct the node. */
-      AttributeSet *attributes = new_attribute_set (2);
+      AttributeSet *attributes = new_attribute_set (3);
       Type *type = new_type (get_type_id ($3));
       set_p_attribute (attributes, "type", type);
 
       /* Code generation! */
       StacParameter *address = translate_expr (operator, $1, $3);
       set_p_attribute (attributes, "address", address);
+
+      /* Save the operator, so that we know if a boolean expression. */
+      set_i_attribute (attributes, "operator", operator);
 
       /* We do not do operand conversion in this implementation, so just pass
        * the children.
@@ -2042,7 +2063,9 @@ unsafe_statement
 labeled_safe_statement
   : unsigned_integer _COLON unlabeled_safe_statement
     {
-      AttributeSet *attributes = new_attribute_set (0);
+      AttributeSet *attributes = new_attribute_set (1);
+      Instruction *instruction = get_p_attribute($3->attributes, "instruction");
+      set_p_attribute (attributes, "instruction", instruction);
       $$ = new_interior_node (_labeled_statement, attributes, 2, $1, $3);
     }
   ;
@@ -2122,10 +2145,12 @@ assignment_statement
       /* Retrieve the address of the expression. */
       StacParameter *expr_address = get_p_attribute ($3->attributes, "address");
 
-      /* Generate code for assignment. */
-      generate_instruction (opcode, var_address, expr_address, NULL);
+      /* Build code for assignment. */
+      Instruction *instruction = malloc (sizeof (instruction));
+      build_instruction (instruction, opcode, var_address, expr_address, NULL);
 
-      AttributeSet *attributes = new_attribute_set (0);	  
+      AttributeSet *attributes = new_attribute_set (1);
+      set_p_attribute (attributes, "instruction", instruction);
       $$ = new_interior_node (_assignment_statement, attributes, 2, $1, $3);
     }
   ;
@@ -2297,50 +2322,57 @@ unsafe_conditional_statement
         /* Section 9.2.2.1. If statements */
 
 if_then_statement
-  : _IF expr _THEN safe_statement
-    { 
+   : _IF expr _THEN safe_statement
+    {
+      /* Generate labels for consequent and end. */
+      StacParameter *consequent_label = generate_label ();
+      StacParameter *end_label = generate_label ();
+      
+      /* Generate control flow instructions. */
+      translate_bexp ($2, consequent_label, end_label);
+
+      generate_instruction (_LABL, consequent_label, NULL, NULL);
+
+      /* Code for the consequent */
+      Instruction *instruction = get_p_attribute ($4->attributes, "instruction");
+      generate_statement (instruction);
+      free (instruction);
+      generate_instruction (JMP, end_label, NULL, NULL);
+
+      /* We do not forget about the end label. */
+      generate_instruction (_LABL, end_label, NULL, NULL);
+      
       AttributeSet *attributes = new_attribute_set (0);
       $$ = new_interior_node (_if_then_statement, attributes, 2, $2, $4);
     }
   ;
 
 safe_if_then_else_statement
-  : _IF 
+  : _IF expr _THEN safe_statement _ELSE safe_statement
     { 
       /* Generate labels for consequent, alternate, and end. */
-      Label *consequent_label = generate_label ();
-      Label *alternate_label = generate_label ();
-      Label *end_label = generate_label ();
-    }
-     expr
-    {
-     /* Check if expression is a boolean expression. */
-     is_bexp ($2);
+      StacParameter *consequent_label = generate_label ();
+      StacParameter *alternate_label = generate_label ();
+      StacParameter *end_label = generate_label ();
 
-     /* Generate control flow instructions. */
-     translate_bexp ($2, consequent_label, alternate_label);
-     }
-      _THEN 
-     {
-     safe_statement 
-     {
-      /* Consequent code block. */
-      generate_instruction (_LABEL, consequent_label, NULL, NULL);
-      translate ($4);
-      generate_instruction (_JUMP, end_label, NULL, NULL);
-//    StacParameter* consequent_address = get_p_attribute ($2->attributes, "address");
-     }
-      _ELSE safe_statement
-     {
-      /* Alternate code block. */
-      generate_instruction (_LABEL, alternate_label, NULL, NULL);
-      translate ($5);
-//    StacParameter* alternate_address = get_p_attribute ($2->attributes, "address");
+      /* Generate control flow instructions. */
+      translate_bexp ($2, consequent_label, alternate_label);
 
+      generate_instruction (_LABL, consequent_label, NULL, NULL);
+  
+      /* Code for the consequent */
+      // translate statement ($4);
+      generate_instruction (JMP, end_label, NULL, NULL);
+      
+      generate_instruction (_LABL, alternate_label, NULL, NULL);
+
+      /* Code for the alternate. */
+      // translate statement ($5);
+      generate_instruction (JMP, end_label, NULL, NULL);
+      
       /* We do not forget about the end label. */
-      generate_instruction (_JUMP, end_label, NULL, NULL);
-      generate_instruction (_LABEL, end_label, NULL, NULL);
-
+      generate_instruction (_LABL, end_label, NULL, NULL);
+      
       /* Finally, create the node. */
       AttributeSet *attributes = new_attribute_set (0);
       $$ = new_interior_node (_if_then_else_statement, attributes, 3, $2, $4, $6);
@@ -2349,7 +2381,30 @@ safe_if_then_else_statement
 
 unsafe_if_then_else_statement
   : _IF expr _THEN safe_statement _ELSE unsafe_statement
-    { 
+    {
+         /* Generate labels for consequent, alternate, and end. */
+      StacParameter *consequent_label = generate_label ();
+      StacParameter *alternate_label = generate_label ();
+      StacParameter *end_label = generate_label ();
+
+      /* Generate control flow instructions. */
+      translate_bexp ($2, consequent_label, alternate_label);
+
+      generate_instruction (_LABL, consequent_label, NULL, NULL);
+
+      /* Code for the consequent */
+      // translate statement ($4);
+      generate_instruction (JMP, end_label, NULL, NULL);
+      
+      generate_instruction (_LABL, alternate_label, NULL, NULL);
+
+      /* Code for the alternate. */
+      // translate statement ($5);
+      generate_instruction (JMP, end_label, NULL, NULL);
+      
+      /* We do not forget about the end label. */
+      generate_instruction (_LABL, end_label, NULL, NULL);
+      
       AttributeSet *attributes = new_attribute_set (0);
       $$ = new_interior_node (_if_then_else_statement, attributes, 3, $2, $4, $6);
     }
@@ -2949,7 +3004,7 @@ get_opcode (int operator, TypeID operand_type)
     }
       
   return opcode;
-}
+} // get_opcode
   
 /* Translate an expression into three-address code. YAY! */
 StacParameter *
@@ -2977,18 +3032,82 @@ translate_expr (int operator, Node *left, Node *right)
   generate_instruction (opcode, address, left_param, right_param);
 
   return address;
-}
+} // translate_exp
 
-/* Check if expression is a boolean epxression. */
-is_bexp (Node *node)
-{
- /* Check if the operator is a boolean operator. */
 
 /* Translate a boolean expression. */
-StacParameter *
-translate_bexp (Node *node, Label truelabel, Label falselabel)
+void
+translate_bexp (Node *node, StacParameter *true_label, StacParameter *false_label)
 {
-}
+  /* Check if the operator is a boolean operator. */
+  int operator = get_i_attribute (node->attributes, "operator");
+
+  Node *loperand_node = get_child (node, 0);
+  Node *roperand_node = get_child (node, 2);
+  StacParameter *loperand = get_p_attribute (loperand_node->attributes, "address");
+  StacParameter *roperand = get_p_attribute (roperand_node->attributes, "address");
+
+  /* An operand can either be an integer or a real.*/
+  if (loperand->type == ICONSTANT)
+    switch (operator)
+      {
+      case _LT:
+        generate_instruction (JGTI, true_label, roperand, loperand);
+      case _LE:
+        generate_instruction (JLEI, true_label, loperand, roperand);
+      case _EQ:
+        generate_instruction (JEQI, true_label, loperand, roperand);
+      case _NE:
+        generate_instruction (JNEI, true_label, loperand, roperand);
+      case _GE:
+        generate_instruction (JLEI, true_label, roperand, loperand);
+      case _GT:
+        generate_instruction (JGTI, true_label, loperand, roperand);
+      case _IN:
+
+        /* NOT YET IMPLEMENTED */
+      case _AND:
+      case _OR:
+      case _NOT:
+      case _TRUE:
+        generate_instruction (JMP, true_label, NULL, NULL);
+      case _FALSE:
+        generate_instruction (JMP, false_label, NULL, NULL);
+
+      default:
+        fprintf (stderr, "Expected a boolean expression in conditional statement!\n");
+      } // switch
+  else // it must be a real
+    switch (operator)
+      {
+      case _LT:
+        generate_instruction (JGTF, true_label, roperand, loperand);
+      case _LE:
+        generate_instruction (JLEF, true_label, loperand, roperand);
+      case _EQ:
+        generate_instruction (JEQF, true_label, loperand, roperand);
+      case _NE:
+        generate_instruction (JNEF, true_label, loperand, roperand);
+      case _GE:
+        generate_instruction (JLEF, true_label, roperand, loperand);
+      case _GT:
+        generate_instruction (JGTF, true_label, loperand, roperand);
+      case _IN:
+
+        /* NOT YET IMPLEMENTED */
+      case _AND:
+      case _OR:
+      case _NOT:
+      case _TRUE:
+        generate_instruction (JMP, true_label, NULL, NULL);
+      case _FALSE:
+        generate_instruction (JMP, false_label, NULL, NULL);
+
+      default:
+        fprintf (stderr, "Expected a boolean expression in conditional statement!\n");
+      } // switch
+} // translate_bexp
+
 
 /* Our beautiful lexer. */
 #include "lex.yy.c"
