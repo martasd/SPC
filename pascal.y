@@ -945,9 +945,39 @@ generate_instruction (OpCode opcode, StacParameter *param1, StacParameter *param
 void
 generate_statement (Instruction *instruction)
 {
-  generate_instruction (instruction->op, instruction->params[0],
-                        instruction->params[1], instruction->params[2]);
+  generate_instruction (instruction->op, instruction->params[0], instruction->params[1], instruction->params[2]);
 }
+
+/* Generate an instruction for all instructions in instructions array. */
+void
+generate_instructions (Instruction *instructions[])
+{
+  /* Get the first instruction. */
+  Instruction *instruction = instructions[0];
+
+  /* Process all instructions in the instructions array. */
+  while (instruction != NULL)
+    generate_statement (instruction);
+}
+
+/* Generate instructions for all constituents of procedure and function. */
+void
+generate_procedure_function (Node *procedure_function_children[])
+{
+  int i;
+  
+  /* Generate instructions procedure's or function's children. */
+  for (i = 0; i < 7; i++)
+    {
+      /* Retrieve the instructions array and pass it on. */
+      Instruction **instructions; // NOT IMPLEMENTED YET
+      generate_instructions (instructions);
+    }
+}
+
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// Labels
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 int num_labels = 0;
 
@@ -2551,7 +2581,13 @@ procedure_declaration
     variable_declaration_part
     procedure_declaration_list
     compound_statement
-    { 
+    {
+      /* Build an array of procedure children nodes. */
+      Node *procedure_children[] = {$1, $2, $3, $4, $5, $6, $7};
+      
+      /* Generate instructions for all parts of procedure. */
+      generate_procedure_function (procedure_children);
+      
       AttributeSet *attributes = new_attribute_set (0);
       $$ = new_interior_node (_procedure_declaration, attributes, 7,
                               $1, $2, $3, $4, $5, $6, $7);
@@ -2821,7 +2857,13 @@ function_declaration
     variable_declaration_part
     procedure_declaration_list
     compound_statement
-    { 
+    {
+      /* Build an array of procedure children nodes. */
+      Node *function_children[] = {$1, $2, $3, $4, $5, $6, $7};
+      
+      /* Generate instructions for all parts of function. */
+      generate_procedure_function (function_children);
+      
       AttributeSet *attributes = new_attribute_set (0);
       $$ = new_interior_node (_function_declaration, attributes, 7,
                               $1, $2, $3, $4, $5, $6, $7);
