@@ -42,8 +42,8 @@ end;
 
 begin
   z := 3;
-  writeln (4);
-  {y := 5 + 4 * 3;
+  {writeln (4);
+  y := 5 + 4 * 3;
   x := z + y;
   
   s := 3;}
