@@ -134,6 +134,7 @@ typedef enum nonterms
     _addop,
     _array_type,
     _assignment_statement,
+    _bexpr,
     _case_element,
     _case_element_list,
     _case_statement,
@@ -246,6 +247,7 @@ char *nonterm_names[] =
     "addop",
     "array_type",
     "assignment_statement",
+    "bexpr",
     "case_element",
     "case_element_list",
     "case_statement",
@@ -983,25 +985,79 @@ int num_labels = 0;
 
 #define LABEL_LENGTH 20
 
-/* Generate next unique label. */
+typedef enum Label
+  {
+    CONSEQUENT_LABEL,
+    ALTERNATE_LABEL,
+    END_LABEL
+  } Label;
+
+StacParameter *consequent_label;
+StacParameter *alternate_label;
+StacParameter *end_label;
+
 /* VERY SUBOPTIMAL: REMEMBER TO IMPROVE DESIGN OF LABEL */
-StacParameter *
-generate_label ()
+/* Generate next unique label. */
+void
+generate_label (Label label_type)
 {
   /* Allocate space for the next label. */
-  char *label;
-  label = malloc (sizeof (char) * LABEL_LENGTH);
+  char *label = malloc (sizeof (char) * LABEL_LENGTH);
 
   /* Store the label number as a string. */
   sprintf (label, "%d", num_labels);
-  num_labels++;
 
-  /* Create a label StacParameter. */
-  StacParameter *label_param = malloc (sizeof (StacParameter));
-  label_param->type = LABEL;
-  label_param->info.s = label;
-  return label_param;
-}
+  switch (label_type)
+    {
+    case (CONSEQUENT_LABEL):
+      consequent_label->type = LABEL;
+      consequent_label->info.s = label;
+    case (ALTERNATE_LABEL):
+      alternate_label->type = LABEL;
+      alternate_label->info.s = label;
+    case (END_LABEL):
+      end_label->type = LABEL;
+      end_label->info.s = label;
+    default:
+      fprintf (stderr, "Passed unrecognized label type.\n");
+    }
+   
+  num_labels++;
+}  
+
+// StacParameter *
+// bad_generate_label ()
+// {
+//   /* Double the array of labels if it is already full. */
+//   if ( num_labels >= max_labels)
+//     {
+//       StacParameter *temp =
+// 	realloc (labels, sizeof (Label) * max_labels * 2);
+//       
+//       /* If no more memory can be allocated, then throw an error. */
+//       if (temp == NULL)
+// 	{
+// 	  fprintf (stderr, "No more memory can be allocated for labels!\n");
+// 	  return 0;
+// 	} 
+//       
+//       labels = temp;
+//       max_labels = max_labels * 2;
+//     }
+//   
+//   /* Allocate space for the next label. */
+//   char *label;
+//   label = malloc (sizeof (char) * LABEL_LENGTH);
+// 
+//   /* Store the label number as a string. */
+//   sprintf (label, "%d", num_labels);
+// 
+//   /* Put the label in the array. */
+//   labels[num_labels]->type = LABEL;
+//   labels[num_labels]->info.s = label;
+//   num_labels++;
+//   return label_param;
+// }
 
 
 /* Copied from pascal.y by Sam Rebelsky. */
@@ -1013,7 +1069,7 @@ int is_boolean_operator (int operator);
 int is_assignment_operator (int operator);
 OpCode get_opcode (int operator, TypeID operand);
 StacParameter *translate_expr (int operator, Node *left, Node *right);
-void translate_bexp (Node *node, StacParameter *truelabel, StacParameter *falselabel);
+void translate_bexpr (Node *node, StacParameter *truelabel, StacParameter *falselabel);
 
 /* STUB */
 void
@@ -1916,6 +1972,57 @@ expr
     { $$ = $1; }
   ;
 
+/* Added bexpr for dealing with conditional statements. */
+bexpr 
+  : id  // Boolean variable or constant
+  | expr relop expr
+  {
+    Instruction *instruction = malloc (sizeof (Instruction));
+  switch (operator)
+      {
+      case _LT:
+        build_instruction (JGTI, true_label, roperand, loperand);
+      case _LE:
+        build_instruction (JLEI, true_label, loperand, roperand);
+      case _EQ:
+        build_instruction (JEQI, true_label, loperand, roperand);
+      case _NE:
+        build_instruction (JNEI, true_label, loperand, roperand);
+      case _GE:
+        build_instruction (JLEI, true_label, roperand, loperand);
+      case _GT:
+        build_instruction (JGTI, true_label, loperand, roperand);
+      case _IN:
+      }
+  }
+| bexpr _AND bexpr // NOT IMPLEMENTED
+  {
+    Instruction *instruction = malloc (sizeof (Instruction));
+    build_instruction (JGTI, true_label, loperand, roperand);
+  } 
+| bexpr _OR bexpr // NOT IMPLEMENTED
+  {
+    Instruction *instruction = malloc (sizeof (Instruction));
+    build_instruction (JGTI, true_label, loperand, roperand);
+  }
+  | _NOT bexpr
+  {
+    Instruction *instruction = malloc (sizeof (Instruction));
+    build_instruction (JEQI, true_label, 0, roperand);
+  }
+;
+/* TRUE and FALSE Not in the language so not implementing. */
+// | TRUE
+// {
+//   Instruction *instruction = malloc (sizeof (Instruction));
+//   build_instruction (JMP, true_label, NULL, NULL);
+// }
+// | FALSE
+// { 
+//   Instruction *instruction = malloc (sizeof (Instruction));
+//   build_instruction (JMP, false_label, NULL, NULL);
+// }
+
 expr_list
   : expr expr_list_tail
     {
@@ -2176,7 +2283,7 @@ assignment_statement
       StacParameter *expr_address = get_p_attribute ($3->attributes, "address");
 
       /* Build code for assignment. */
-      Instruction *instruction = malloc (sizeof (instruction));
+      Instruction *instruction = malloc (sizeof (Instruction));
       build_instruction (instruction, opcode, var_address, expr_address, NULL);
 
       AttributeSet *attributes = new_attribute_set (1);
@@ -2352,24 +2459,21 @@ unsafe_conditional_statement
         /* Section 9.2.2.1. If statements */
 
 if_then_statement
-   : _IF expr _THEN safe_statement
+   : _IF expr _THEN safe_statement 
     {
       /* Generate labels for consequent and end. */
-      StacParameter *consequent_label = generate_label ();
-      StacParameter *end_label = generate_label ();
+      generate_label (CONSEQUENT_LABEL);
+      generate_label (END_LABEL);
       
       /* Generate control flow instructions. */
-      translate_bexp ($2, consequent_label, end_label);
-
+      translate_bexpr ($2, consequent_label, end_label);
+      
       generate_instruction (_LABL, consequent_label, NULL, NULL);
-
+      
       /* Code for the consequent */
       Instruction *instruction = get_p_attribute ($4->attributes, "instruction");
       generate_statement (instruction);
-      free (instruction);
-      generate_instruction (JMP, end_label, NULL, NULL);
-
-      /* We do not forget about the end label. */
+      
       generate_instruction (_LABL, end_label, NULL, NULL);
       
       AttributeSet *attributes = new_attribute_set (0);
@@ -2381,12 +2485,12 @@ safe_if_then_else_statement
   : _IF expr _THEN safe_statement _ELSE safe_statement
     { 
       /* Generate labels for consequent, alternate, and end. */
-      StacParameter *consequent_label = generate_label ();
-      StacParameter *alternate_label = generate_label ();
-      StacParameter *end_label = generate_label ();
+      generate_label (CONSEQUENT_LABEL);
+      generate_label (ALTERNATE_LABEL);
+      generate_label (END_LABEL);
 
       /* Generate control flow instructions. */
-      translate_bexp ($2, consequent_label, alternate_label);
+      translate_bexpr ($2, consequent_label, alternate_label);
 
       generate_instruction (_LABL, consequent_label, NULL, NULL);
   
@@ -2412,13 +2516,13 @@ safe_if_then_else_statement
 unsafe_if_then_else_statement
   : _IF expr _THEN safe_statement _ELSE unsafe_statement
     {
-         /* Generate labels for consequent, alternate, and end. */
-      StacParameter *consequent_label = generate_label ();
-      StacParameter *alternate_label = generate_label ();
-      StacParameter *end_label = generate_label ();
+      /* Generate labels for consequent, alternate, and end. */
+      generate_label (CONSEQUENT_LABEL);
+      generate_label (ALTERNATE_LABEL);
+      generate_label (END_LABEL);
 
       /* Generate control flow instructions. */
-      translate_bexp ($2, consequent_label, alternate_label);
+      translate_bexpr ($2, consequent_label, alternate_label);
 
       generate_instruction (_LABL, consequent_label, NULL, NULL);
 
@@ -3079,7 +3183,7 @@ translate_expr (int operator, Node *left, Node *right)
 
 /* Translate a boolean expression. */
 void
-translate_bexp (Node *node, StacParameter *true_label, StacParameter *false_label)
+translate_bexpr (Node *node, StacParameter *true_label, StacParameter *false_label)
 {
   /* Check if the operator is a boolean operator. */
   int operator = get_i_attribute (node->attributes, "operator");
@@ -3148,7 +3252,7 @@ translate_bexp (Node *node, StacParameter *true_label, StacParameter *false_labe
       default:
         fprintf (stderr, "Expected a boolean expression in conditional statement!\n");
       } // switch
-} // translate_bexp
+} // translate_bexpr
 
 
 /* Our beautiful lexer. */

@@ -1,0 +1,6112 @@
+Terminals unused in grammar
+
+   TOKENS_START
+   _ERROR
+   GENERAL_START
+   GENERAL_END
+   CONSTANTS_START
+   CONSTANTS_END
+   KEYWORDS_START
+   _EOL
+   KEYWORDS_END
+   PUNCTUATION_START
+   PUNCTUATION_END
+   OPERATORS_START
+   MULOPS_START
+   MULOPS_END
+   ADDOPS_START
+   ADDOPS_END
+   RELOPS_START
+   RELOPS_END
+   OPERATORS_END
+   TOKENS_END
+
+
+Rules useless in parser due to conflicts
+
+  159 $@2: /* empty */
+
+
+State 230 conflicts: 1 shift/reduce
+
+
+Grammar
+
+    0 $accept: start $end
+
+    1 $@1: /* empty */
+
+    2 start: $@1 program
+
+    3 unsigned_integer: _INTEGER
+
+    4 unsigned_integer_list: unsigned_integer unsigned_integer_list_tail
+
+    5 unsigned_integer_list_tail: /* empty */
+    6                           | _COMMA unsigned_integer unsigned_integer_list_tail
+
+    7 unsigned_real: _REAL
+
+    8 unsigned_number: unsigned_integer
+    9                | unsigned_real
+
+   10 sign: _PLUS
+   11     | _DASH
+
+   12 string: _STRING
+
+   13 id: _IDENTIFIER
+
+   14 unsigned_constant: unsigned_number
+   15                  | string
+   16                  | _NIL
+   17                  | _TRUE
+   18                  | _FALSE
+
+   19 signed_number: sign unsigned_number
+
+   20 signed_identifier: sign id
+
+   21 constant: unsigned_number
+   22         | signed_number
+   23         | id
+   24         | signed_identifier
+   25         | string
+
+   26 constant_list: constant constant_list_tail
+
+   27 constant_list_tail: /* empty */
+   28                   | _COMMA constant constant_list_tail
+
+   29 constant_definition: id _EQ constant
+
+   30 type: simple_type
+   31     | structured_type
+   32     | pointer_type
+
+   33 type_definition: id _EQ type
+
+   34 simple_type: scalar_type
+   35            | subrange_type
+   36            | id
+
+   37 scalar_type: _LPAREN idlist _RPAREN
+
+   38 idlist: id idtail
+
+   39 idtail: /* empty */
+   40       | _COMMA id idtail
+
+   41 subrange_type: constant _ELLIPSES constant
+
+   42 structured_type: unpacked_structured_type
+   43                | packed_structured_type
+
+   44 packed_structured_type: _PACKED unpacked_structured_type
+
+   45 unpacked_structured_type: array_type
+   46                         | record_type
+   47                         | set_type
+   48                         | file_type
+
+   49 array_type: _ARRAY _LBRACKET simple_type_list _RBRACKET _OF type
+
+   50 simple_type_list: simple_type simple_type_list_tail
+
+   51 simple_type_list_tail: /* empty */
+   52                      | _COMMA simple_type simple_type_list_tail
+
+   53 record_type: _RECORD field_list _END
+
+   54 field_list: field_list_kernel
+
+   55 field_list_kernel: record_section field_list_tail
+   56                  | variant_part
+
+   57 field_list_tail: /* empty */
+   58                | _SEMICOLON field_list_kernel
+
+   59 record_section: idlist _COLON type
+
+   60 variant_part: _CASE id _COLON id _OF variant_list
+
+   61 variant: constant_list _COLON _LPAREN field_list _RPAREN
+   62        | constant_list
+
+   63 variant_list: variant variant_list_tail
+
+   64 variant_list_tail: /* empty */
+   65                  | _SEMICOLON variant variant_list_tail
+
+   66 set_type: _SET _OF simple_type
+
+   67 file_type: _FILE _OF type
+
+   68 pointer_type: _POINTER id
+
+   69 variable_declaration: idlist _COLON type
+
+   70 variable: entire_variable
+   71         | component_variable
+   72         | referenced_variable
+
+   73 variable_list: variable variable_list_tail
+
+   74 variable_list_tail: /* empty */
+   75                   | _COMMA variable variable_list_tail
+
+   76 entire_variable: id
+
+   77 component_variable: indexed_variable
+   78                   | field_designator
+
+   79 indexed_variable: variable _LBRACKET expr_list _RBRACKET
+
+   80 field_designator: variable _DOT id
+
+   81 referenced_variable: variable _POINTER
+
+   82 factor: variable
+   83       | unsigned_constant
+   84       | function_call
+   85       | set
+   86       | _LPAREN expr _RPAREN
+   87       | _NOT factor
+
+   88 set: _LBRACKET expr_list _RBRACKET
+   89    | _LBRACKET _RBRACKET
+
+   90 term: term mulop factor
+   91     | factor
+
+   92 simple: simple addop term
+   93       | addop term
+   94       | term
+
+   95 expr: simple relop simple
+   96     | simple
+
+   97 expr_list: expr expr_list_tail
+
+   98 expr_list_tail: /* empty */
+   99               | _COMMA expr expr_list_tail
+
+  100 mulop: _STAR
+  101      | _SLASH
+  102      | _DIV
+  103      | _MOD
+  104      | _AND
+
+  105 addop: _PLUS
+  106      | _DASH
+  107      | _OR
+
+  108 relop: _LT
+  109      | _LE
+  110      | _EQ
+  111      | _NE
+  112      | _GE
+  113      | _GT
+  114      | _IN
+
+  115 function_call: id _LPAREN _RPAREN
+  116              | id _LPAREN expr_list _RPAREN
+
+  117 statement_list: statement statement_list_tail
+
+  118 statement_list_tail: /* empty */
+  119                    | _SEMICOLON statement statement_list_tail
+
+  120 statement: safe_statement
+  121          | unsafe_statement
+
+  122 safe_statement: labeled_safe_statement
+  123               | unlabeled_safe_statement
+
+  124 unsafe_statement: labeled_unsafe_statement
+  125                 | unlabeled_unsafe_statement
+
+  126 labeled_safe_statement: unsigned_integer _COLON unlabeled_safe_statement
+
+  127 labeled_unsafe_statement: unsigned_integer _COLON unlabeled_unsafe_statement
+
+  128 unlabeled_safe_statement: simple_statement
+  129                         | safe_structured_statement
+
+  130 unlabeled_unsafe_statement: unsafe_structured_statement
+
+  131 simple_statement: assignment_statement
+  132                 | output_statement
+  133                 | procedure_call
+  134                 | goto_statement
+  135                 | empty_statement
+
+  136 assignment_statement: variable _ASSIGN expr
+
+  137 output_statement: _WRITE _LPAREN write_parameter_list _RPAREN
+  138                 | _WRITELN _LPAREN write_parameter_list _RPAREN
+
+  139 write_parameter_list: write_parameter write_parameter_list_tail
+
+  140 write_parameter_list_tail: /* empty */
+  141                          | _COMMA write_parameter write_parameter_list_tail
+
+  142 write_parameter: expr
+
+  143 procedure_call: id
+  144               | id _LPAREN expr_list _RPAREN
+
+  145 goto_statement: _GOTO unsigned_integer
+
+  146 empty_statement: /* empty */
+
+  147 safe_structured_statement: compound_statement
+  148                          | safe_conditional_statement
+  149                          | safe_repetitive_statement
+  150                          | safe_with_statement
+
+  151 unsafe_structured_statement: unsafe_conditional_statement
+  152                            | unsafe_repetitive_statement
+  153                            | unsafe_with_statement
+
+  154 compound_statement: _BEGIN statement_list _END
+
+  155 safe_conditional_statement: safe_if_then_else_statement
+  156                           | case_statement
+
+  157 unsafe_conditional_statement: if_then_statement
+  158                             | unsafe_if_then_else_statement
+
+  159 $@2: /* empty */
+
+  160 if_then_statement: _IF expr $@2 _THEN safe_statement
+
+  161 safe_if_then_else_statement: _IF expr _THEN safe_statement _ELSE safe_statement
+
+  162 unsafe_if_then_else_statement: _IF expr _THEN safe_statement _ELSE unsafe_statement
+
+  163 case_statement: _CASE expr _OF case_element_list _END
+
+  164 case_element: constant_list _COLON statement
+
+  165 case_element_list: case_element case_element_list_tail
+
+  166 case_element_list_tail: /* empty */
+  167                       | _SEMICOLON case_element case_element_list_tail
+
+  168 safe_repetitive_statement: safe_while_statement
+  169                          | repeat_statement
+  170                          | safe_for_statement
+
+  171 unsafe_repetitive_statement: unsafe_while_statement
+  172                            | unsafe_for_statement
+
+  173 safe_while_statement: _WHILE expr _DO safe_statement
+
+  174 unsafe_while_statement: _WHILE expr _DO unsafe_statement
+
+  175 repeat_statement: _REPEAT statement_list _UNTIL expr
+
+  176 safe_for_statement: _FOR id _ASSIGN expr direction expr _DO safe_statement
+
+  177 unsafe_for_statement: _FOR id _ASSIGN expr direction expr _DO unsafe_statement
+
+  178 direction: _TO
+  179          | _DOWNTO
+
+  180 safe_with_statement: _WITH variable_list _DO safe_statement
+
+  181 unsafe_with_statement: _WITH variable_list _DO unsafe_statement
+
+  182 procedure_declaration: procedure_heading label_declaration_part constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list compound_statement
+
+  183 procedure_heading: _PROCEDURE id _LPAREN formal_parameters _RPAREN _SEMICOLON
+
+  184 formal_parameters: /* empty */
+  185                  | formals_list
+
+  186 formals: value_parameter
+  187        | variable_parameter
+  188        | function_parameter
+  189        | procedure_parameter
+
+  190 formals_list: formals formals_list_tail
+
+  191 formals_list_tail: /* empty */
+  192                  | _SEMICOLON formals formals_list_tail
+
+  193 value_parameter: parameter_group
+
+  194 variable_parameter: _VAR parameter_group
+
+  195 function_parameter: _FUNCTION parameter_group
+
+  196 procedure_parameter: _PROCEDURE idlist
+
+  197 parameter_group: idlist _COLON id
+
+  198 label_declaration_part: /* empty */
+  199                       | _LABEL unsigned_integer_list _SEMICOLON
+
+  200 constant_definition_part: /* empty */
+  201                         | _CONST constant_definition_list
+
+  202 constant_definition_list: constant_definition _SEMICOLON constant_definition_list_tail
+
+  203 constant_definition_list_tail: /* empty */
+  204                              | constant_definition _SEMICOLON constant_definition_list_tail
+
+  205 type_definition_part: /* empty */
+  206                     | _TYPE type_definition_list
+
+  207 type_definition_list: type_definition _SEMICOLON type_definition_list_tail
+
+  208 type_definition_list_tail: /* empty */
+  209                          | type_definition _SEMICOLON type_definition_list_tail
+
+  210 variable_declaration_part: /* empty */
+  211                          | _VAR variable_declaration_list
+
+  212 variable_declaration_list: variable_declaration _SEMICOLON variable_declaration_list_tail
+
+  213 variable_declaration_list_tail: /* empty */
+  214                               | variable_declaration _SEMICOLON variable_declaration_list_tail
+
+  215 procedure_declaration_list: /* empty */
+  216                           | procedure_or_function_declaration _SEMICOLON procedure_declaration_list_tail
+
+  217 procedure_declaration_list_tail: /* empty */
+  218                                | procedure_or_function_declaration _SEMICOLON procedure_declaration_list_tail
+
+  219 procedure_or_function_declaration: procedure_declaration
+  220                                  | function_declaration
+
+  221 function_declaration: function_heading label_declaration_part constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list compound_statement
+
+  222 function_heading: _FUNCTION id _LPAREN formal_parameters _RPAREN _COLON id _SEMICOLON
+
+  223 program: program_heading label_declaration_part constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list compound_statement _DOT
+
+  224 program_heading: /* empty */
+  225                | _PROGRAM id _SEMICOLON
+  226                | _PROGRAM id _LPAREN idlist _RPAREN _SEMICOLON
+
+
+Terminals, with rules where they appear
+
+$end (0) 0
+error (256)
+TOKENS_START (258)
+_ERROR (259)
+GENERAL_START (260)
+_IDENTIFIER (261) 13
+GENERAL_END (262)
+CONSTANTS_START (263)
+_INTEGER (264) 3
+_REAL (265) 7
+_STRING (266) 12
+CONSTANTS_END (267)
+KEYWORDS_START (268)
+_ARRAY (269) 49
+_BEGIN (270) 154
+_CASE (271) 60 163
+_CONST (272) 201
+_DO (273) 173 174 176 177 180 181
+_DOWNTO (274) 179
+_ELSE (275) 161 162
+_END (276) 53 154 163
+_EOL (277)
+_FALSE (278) 18
+_FILE (279) 67
+_FOR (280) 176 177
+_FUNCTION (281) 195 222
+_GOTO (282) 145
+_IF (283) 160 161 162
+_IN (284) 114
+_LABEL (285) 199
+_NIL (286) 16
+_OF (287) 49 60 66 67 163
+_PACKED (288) 44
+_WRITE (289) 137
+_WRITELN (290) 138
+_PROCEDURE (291) 183 196
+_PROGRAM (292) 225 226
+_RECORD (293) 53
+_REPEAT (294) 175
+_SET (295) 66
+_THEN (296) 160 161 162
+_TO (297) 178
+_TRUE (298) 17
+_TYPE (299) 206
+_UNTIL (300) 175
+_VAR (301) 194 211
+_WHILE (302) 173 174
+_WITH (303) 180 181
+KEYWORDS_END (304)
+PUNCTUATION_START (305)
+_ASSIGN (306) 136 176 177
+_COLON (307) 59 60 61 69 126 127 164 197 222
+_COMMA (308) 6 28 40 52 75 99 141
+_ELLIPSES (309) 41
+_POINTER (310) 68 81
+_SEMICOLON (311) 58 65 119 167 183 192 199 202 204 207 209 212 214
+    216 218 222 225 226
+_LPAREN (312) 37 61 86 115 116 137 138 144 183 222 226
+_RPAREN (313) 37 61 86 115 116 137 138 144 183 222 226
+_LBRACKET (314) 49 79 88 89
+_RBRACKET (315) 49 79 88 89
+_DOT (316) 80 223
+PUNCTUATION_END (317)
+OPERATORS_START (318)
+_NOT (319) 87
+MULOPS_START (320)
+_AND (321) 104
+_DIV (322) 102
+_MOD (323) 103
+_SLASH (324) 101
+_STAR (325) 100
+MULOPS_END (326)
+ADDOPS_START (327)
+_DASH (328) 11 106
+_OR (329) 107
+_PLUS (330) 10 105
+ADDOPS_END (331)
+RELOPS_START (332)
+_EQ (333) 29 33 110
+_GE (334) 112
+_GT (335) 113
+_LE (336) 109
+_LT (337) 108
+_NE (338) 111
+RELOPS_END (339)
+OPERATORS_END (340)
+TOKENS_END (341)
+
+
+Nonterminals, with rules where they appear
+
+$accept (87)
+    on left: 0
+start (88)
+    on left: 2, on right: 0
+$@1 (89)
+    on left: 1, on right: 2
+unsigned_integer (90)
+    on left: 3, on right: 4 6 8 126 127 145
+unsigned_integer_list (91)
+    on left: 4, on right: 199
+unsigned_integer_list_tail (92)
+    on left: 5 6, on right: 4 6
+unsigned_real (93)
+    on left: 7, on right: 9
+unsigned_number (94)
+    on left: 8 9, on right: 14 19 21
+sign (95)
+    on left: 10 11, on right: 19 20
+string (96)
+    on left: 12, on right: 15 25
+id (97)
+    on left: 13, on right: 20 23 29 33 36 38 40 60 68 76 80 115 116
+    143 144 176 177 183 197 222 225 226
+unsigned_constant (98)
+    on left: 14 15 16 17 18, on right: 83
+signed_number (99)
+    on left: 19, on right: 22
+signed_identifier (100)
+    on left: 20, on right: 24
+constant (101)
+    on left: 21 22 23 24 25, on right: 26 28 29 41
+constant_list (102)
+    on left: 26, on right: 61 62 164
+constant_list_tail (103)
+    on left: 27 28, on right: 26 28
+constant_definition (104)
+    on left: 29, on right: 202 204
+type (105)
+    on left: 30 31 32, on right: 33 49 59 67 69
+type_definition (106)
+    on left: 33, on right: 207 209
+simple_type (107)
+    on left: 34 35 36, on right: 30 50 52 66
+scalar_type (108)
+    on left: 37, on right: 34
+idlist (109)
+    on left: 38, on right: 37 59 69 196 197 226
+idtail (110)
+    on left: 39 40, on right: 38 40
+subrange_type (111)
+    on left: 41, on right: 35
+structured_type (112)
+    on left: 42 43, on right: 31
+packed_structured_type (113)
+    on left: 44, on right: 43
+unpacked_structured_type (114)
+    on left: 45 46 47 48, on right: 42 44
+array_type (115)
+    on left: 49, on right: 45
+simple_type_list (116)
+    on left: 50, on right: 49
+simple_type_list_tail (117)
+    on left: 51 52, on right: 50 52
+record_type (118)
+    on left: 53, on right: 46
+field_list (119)
+    on left: 54, on right: 53 61
+field_list_kernel (120)
+    on left: 55 56, on right: 54 58
+field_list_tail (121)
+    on left: 57 58, on right: 55
+record_section (122)
+    on left: 59, on right: 55
+variant_part (123)
+    on left: 60, on right: 56
+variant (124)
+    on left: 61 62, on right: 63 65
+variant_list (125)
+    on left: 63, on right: 60
+variant_list_tail (126)
+    on left: 64 65, on right: 63 65
+set_type (127)
+    on left: 66, on right: 47
+file_type (128)
+    on left: 67, on right: 48
+pointer_type (129)
+    on left: 68, on right: 32
+variable_declaration (130)
+    on left: 69, on right: 212 214
+variable (131)
+    on left: 70 71 72, on right: 73 75 79 80 81 82 136
+variable_list (132)
+    on left: 73, on right: 180 181
+variable_list_tail (133)
+    on left: 74 75, on right: 73 75
+entire_variable (134)
+    on left: 76, on right: 70
+component_variable (135)
+    on left: 77 78, on right: 71
+indexed_variable (136)
+    on left: 79, on right: 77
+field_designator (137)
+    on left: 80, on right: 78
+referenced_variable (138)
+    on left: 81, on right: 72
+factor (139)
+    on left: 82 83 84 85 86 87, on right: 87 90 91
+set (140)
+    on left: 88 89, on right: 85
+term (141)
+    on left: 90 91, on right: 90 92 93 94
+simple (142)
+    on left: 92 93 94, on right: 92 95 96
+expr (143)
+    on left: 95 96, on right: 86 97 99 136 142 160 161 162 163 173
+    174 175 176 177
+expr_list (144)
+    on left: 97, on right: 79 88 116 144
+expr_list_tail (145)
+    on left: 98 99, on right: 97 99
+mulop (146)
+    on left: 100 101 102 103 104, on right: 90
+addop (147)
+    on left: 105 106 107, on right: 92 93
+relop (148)
+    on left: 108 109 110 111 112 113 114, on right: 95
+function_call (149)
+    on left: 115 116, on right: 84
+statement_list (150)
+    on left: 117, on right: 154 175
+statement_list_tail (151)
+    on left: 118 119, on right: 117 119
+statement (152)
+    on left: 120 121, on right: 117 119 164
+safe_statement (153)
+    on left: 122 123, on right: 120 160 161 162 173 176 180
+unsafe_statement (154)
+    on left: 124 125, on right: 121 162 174 177 181
+labeled_safe_statement (155)
+    on left: 126, on right: 122
+labeled_unsafe_statement (156)
+    on left: 127, on right: 124
+unlabeled_safe_statement (157)
+    on left: 128 129, on right: 123 126
+unlabeled_unsafe_statement (158)
+    on left: 130, on right: 125 127
+simple_statement (159)
+    on left: 131 132 133 134 135, on right: 128
+assignment_statement (160)
+    on left: 136, on right: 131
+output_statement (161)
+    on left: 137 138, on right: 132
+write_parameter_list (162)
+    on left: 139, on right: 137 138
+write_parameter_list_tail (163)
+    on left: 140 141, on right: 139 141
+write_parameter (164)
+    on left: 142, on right: 139 141
+procedure_call (165)
+    on left: 143 144, on right: 133
+goto_statement (166)
+    on left: 145, on right: 134
+empty_statement (167)
+    on left: 146, on right: 135
+safe_structured_statement (168)
+    on left: 147 148 149 150, on right: 129
+unsafe_structured_statement (169)
+    on left: 151 152 153, on right: 130
+compound_statement (170)
+    on left: 154, on right: 147 182 221 223
+safe_conditional_statement (171)
+    on left: 155 156, on right: 148
+unsafe_conditional_statement (172)
+    on left: 157 158, on right: 151
+if_then_statement (173)
+    on left: 160, on right: 157
+$@2 (174)
+    on left: 159, on right: 160
+safe_if_then_else_statement (175)
+    on left: 161, on right: 155
+unsafe_if_then_else_statement (176)
+    on left: 162, on right: 158
+case_statement (177)
+    on left: 163, on right: 156
+case_element (178)
+    on left: 164, on right: 165 167
+case_element_list (179)
+    on left: 165, on right: 163
+case_element_list_tail (180)
+    on left: 166 167, on right: 165 167
+safe_repetitive_statement (181)
+    on left: 168 169 170, on right: 149
+unsafe_repetitive_statement (182)
+    on left: 171 172, on right: 152
+safe_while_statement (183)
+    on left: 173, on right: 168
+unsafe_while_statement (184)
+    on left: 174, on right: 171
+repeat_statement (185)
+    on left: 175, on right: 169
+safe_for_statement (186)
+    on left: 176, on right: 170
+unsafe_for_statement (187)
+    on left: 177, on right: 172
+direction (188)
+    on left: 178 179, on right: 176 177
+safe_with_statement (189)
+    on left: 180, on right: 150
+unsafe_with_statement (190)
+    on left: 181, on right: 153
+procedure_declaration (191)
+    on left: 182, on right: 219
+procedure_heading (192)
+    on left: 183, on right: 182
+formal_parameters (193)
+    on left: 184 185, on right: 183 222
+formals (194)
+    on left: 186 187 188 189, on right: 190 192
+formals_list (195)
+    on left: 190, on right: 185
+formals_list_tail (196)
+    on left: 191 192, on right: 190 192
+value_parameter (197)
+    on left: 193, on right: 186
+variable_parameter (198)
+    on left: 194, on right: 187
+function_parameter (199)
+    on left: 195, on right: 188
+procedure_parameter (200)
+    on left: 196, on right: 189
+parameter_group (201)
+    on left: 197, on right: 193 194 195
+label_declaration_part (202)
+    on left: 198 199, on right: 182 221 223
+constant_definition_part (203)
+    on left: 200 201, on right: 182 221 223
+constant_definition_list (204)
+    on left: 202, on right: 201
+constant_definition_list_tail (205)
+    on left: 203 204, on right: 202 204
+type_definition_part (206)
+    on left: 205 206, on right: 182 221 223
+type_definition_list (207)
+    on left: 207, on right: 206
+type_definition_list_tail (208)
+    on left: 208 209, on right: 207 209
+variable_declaration_part (209)
+    on left: 210 211, on right: 182 221 223
+variable_declaration_list (210)
+    on left: 212, on right: 211
+variable_declaration_list_tail (211)
+    on left: 213 214, on right: 212 214
+procedure_declaration_list (212)
+    on left: 215 216, on right: 182 221 223
+procedure_declaration_list_tail (213)
+    on left: 217 218, on right: 216 218
+procedure_or_function_declaration (214)
+    on left: 219 220, on right: 216 218
+function_declaration (215)
+    on left: 221, on right: 220
+function_heading (216)
+    on left: 222, on right: 221
+program (217)
+    on left: 223, on right: 2
+program_heading (218)
+    on left: 224 225 226, on right: 223
+
+
+state 0
+
+    0 $accept: . start $end
+
+    $default  reduce using rule 1 ($@1)
+
+    start  go to state 1
+    $@1    go to state 2
+
+
+state 1
+
+    0 $accept: start . $end
+
+    $end  shift, and go to state 3
+
+
+state 2
+
+    2 start: $@1 . program
+
+    _PROGRAM  shift, and go to state 4
+
+    $default  reduce using rule 224 (program_heading)
+
+    program          go to state 5
+    program_heading  go to state 6
+
+
+state 3
+
+    0 $accept: start $end .
+
+    $default  accept
+
+
+state 4
+
+  225 program_heading: _PROGRAM . id _SEMICOLON
+  226                | _PROGRAM . id _LPAREN idlist _RPAREN _SEMICOLON
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id  go to state 8
+
+
+state 5
+
+    2 start: $@1 program .
+
+    $default  reduce using rule 2 (start)
+
+
+state 6
+
+  223 program: program_heading . label_declaration_part constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list compound_statement _DOT
+
+    _LABEL  shift, and go to state 9
+
+    $default  reduce using rule 198 (label_declaration_part)
+
+    label_declaration_part  go to state 10
+
+
+state 7
+
+   13 id: _IDENTIFIER .
+
+    $default  reduce using rule 13 (id)
+
+
+state 8
+
+  225 program_heading: _PROGRAM id . _SEMICOLON
+  226                | _PROGRAM id . _LPAREN idlist _RPAREN _SEMICOLON
+
+    _SEMICOLON  shift, and go to state 11
+    _LPAREN     shift, and go to state 12
+
+
+state 9
+
+  199 label_declaration_part: _LABEL . unsigned_integer_list _SEMICOLON
+
+    _INTEGER  shift, and go to state 13
+
+    unsigned_integer       go to state 14
+    unsigned_integer_list  go to state 15
+
+
+state 10
+
+  223 program: program_heading label_declaration_part . constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list compound_statement _DOT
+
+    _CONST  shift, and go to state 16
+
+    $default  reduce using rule 200 (constant_definition_part)
+
+    constant_definition_part  go to state 17
+
+
+state 11
+
+  225 program_heading: _PROGRAM id _SEMICOLON .
+
+    $default  reduce using rule 225 (program_heading)
+
+
+state 12
+
+  226 program_heading: _PROGRAM id _LPAREN . idlist _RPAREN _SEMICOLON
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id      go to state 18
+    idlist  go to state 19
+
+
+state 13
+
+    3 unsigned_integer: _INTEGER .
+
+    $default  reduce using rule 3 (unsigned_integer)
+
+
+state 14
+
+    4 unsigned_integer_list: unsigned_integer . unsigned_integer_list_tail
+
+    _COMMA  shift, and go to state 20
+
+    $default  reduce using rule 5 (unsigned_integer_list_tail)
+
+    unsigned_integer_list_tail  go to state 21
+
+
+state 15
+
+  199 label_declaration_part: _LABEL unsigned_integer_list . _SEMICOLON
+
+    _SEMICOLON  shift, and go to state 22
+
+
+state 16
+
+  201 constant_definition_part: _CONST . constant_definition_list
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id                        go to state 23
+    constant_definition       go to state 24
+    constant_definition_list  go to state 25
+
+
+state 17
+
+  223 program: program_heading label_declaration_part constant_definition_part . type_definition_part variable_declaration_part procedure_declaration_list compound_statement _DOT
+
+    _TYPE  shift, and go to state 26
+
+    $default  reduce using rule 205 (type_definition_part)
+
+    type_definition_part  go to state 27
+
+
+state 18
+
+   38 idlist: id . idtail
+
+    _COMMA  shift, and go to state 28
+
+    $default  reduce using rule 39 (idtail)
+
+    idtail  go to state 29
+
+
+state 19
+
+  226 program_heading: _PROGRAM id _LPAREN idlist . _RPAREN _SEMICOLON
+
+    _RPAREN  shift, and go to state 30
+
+
+state 20
+
+    6 unsigned_integer_list_tail: _COMMA . unsigned_integer unsigned_integer_list_tail
+
+    _INTEGER  shift, and go to state 13
+
+    unsigned_integer  go to state 31
+
+
+state 21
+
+    4 unsigned_integer_list: unsigned_integer unsigned_integer_list_tail .
+
+    $default  reduce using rule 4 (unsigned_integer_list)
+
+
+state 22
+
+  199 label_declaration_part: _LABEL unsigned_integer_list _SEMICOLON .
+
+    $default  reduce using rule 199 (label_declaration_part)
+
+
+state 23
+
+   29 constant_definition: id . _EQ constant
+
+    _EQ  shift, and go to state 32
+
+
+state 24
+
+  202 constant_definition_list: constant_definition . _SEMICOLON constant_definition_list_tail
+
+    _SEMICOLON  shift, and go to state 33
+
+
+state 25
+
+  201 constant_definition_part: _CONST constant_definition_list .
+
+    $default  reduce using rule 201 (constant_definition_part)
+
+
+state 26
+
+  206 type_definition_part: _TYPE . type_definition_list
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id                    go to state 34
+    type_definition       go to state 35
+    type_definition_list  go to state 36
+
+
+state 27
+
+  223 program: program_heading label_declaration_part constant_definition_part type_definition_part . variable_declaration_part procedure_declaration_list compound_statement _DOT
+
+    _VAR  shift, and go to state 37
+
+    $default  reduce using rule 210 (variable_declaration_part)
+
+    variable_declaration_part  go to state 38
+
+
+state 28
+
+   40 idtail: _COMMA . id idtail
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id  go to state 39
+
+
+state 29
+
+   38 idlist: id idtail .
+
+    $default  reduce using rule 38 (idlist)
+
+
+state 30
+
+  226 program_heading: _PROGRAM id _LPAREN idlist _RPAREN . _SEMICOLON
+
+    _SEMICOLON  shift, and go to state 40
+
+
+state 31
+
+    6 unsigned_integer_list_tail: _COMMA unsigned_integer . unsigned_integer_list_tail
+
+    _COMMA  shift, and go to state 20
+
+    $default  reduce using rule 5 (unsigned_integer_list_tail)
+
+    unsigned_integer_list_tail  go to state 41
+
+
+state 32
+
+   29 constant_definition: id _EQ . constant
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer   go to state 46
+    unsigned_real      go to state 47
+    unsigned_number    go to state 48
+    sign               go to state 49
+    string             go to state 50
+    id                 go to state 51
+    signed_number      go to state 52
+    signed_identifier  go to state 53
+    constant           go to state 54
+
+
+state 33
+
+  202 constant_definition_list: constant_definition _SEMICOLON . constant_definition_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+
+    $default  reduce using rule 203 (constant_definition_list_tail)
+
+    id                             go to state 23
+    constant_definition            go to state 55
+    constant_definition_list_tail  go to state 56
+
+
+state 34
+
+   33 type_definition: id . _EQ type
+
+    _EQ  shift, and go to state 57
+
+
+state 35
+
+  207 type_definition_list: type_definition . _SEMICOLON type_definition_list_tail
+
+    _SEMICOLON  shift, and go to state 58
+
+
+state 36
+
+  206 type_definition_part: _TYPE type_definition_list .
+
+    $default  reduce using rule 206 (type_definition_part)
+
+
+state 37
+
+  211 variable_declaration_part: _VAR . variable_declaration_list
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id                         go to state 18
+    idlist                     go to state 59
+    variable_declaration       go to state 60
+    variable_declaration_list  go to state 61
+
+
+state 38
+
+  223 program: program_heading label_declaration_part constant_definition_part type_definition_part variable_declaration_part . procedure_declaration_list compound_statement _DOT
+
+    _FUNCTION   shift, and go to state 62
+    _PROCEDURE  shift, and go to state 63
+
+    $default  reduce using rule 215 (procedure_declaration_list)
+
+    procedure_declaration              go to state 64
+    procedure_heading                  go to state 65
+    procedure_declaration_list         go to state 66
+    procedure_or_function_declaration  go to state 67
+    function_declaration               go to state 68
+    function_heading                   go to state 69
+
+
+state 39
+
+   40 idtail: _COMMA id . idtail
+
+    _COMMA  shift, and go to state 28
+
+    $default  reduce using rule 39 (idtail)
+
+    idtail  go to state 70
+
+
+state 40
+
+  226 program_heading: _PROGRAM id _LPAREN idlist _RPAREN _SEMICOLON .
+
+    $default  reduce using rule 226 (program_heading)
+
+
+state 41
+
+    6 unsigned_integer_list_tail: _COMMA unsigned_integer unsigned_integer_list_tail .
+
+    $default  reduce using rule 6 (unsigned_integer_list_tail)
+
+
+state 42
+
+    7 unsigned_real: _REAL .
+
+    $default  reduce using rule 7 (unsigned_real)
+
+
+state 43
+
+   12 string: _STRING .
+
+    $default  reduce using rule 12 (string)
+
+
+state 44
+
+   11 sign: _DASH .
+
+    $default  reduce using rule 11 (sign)
+
+
+state 45
+
+   10 sign: _PLUS .
+
+    $default  reduce using rule 10 (sign)
+
+
+state 46
+
+    8 unsigned_number: unsigned_integer .
+
+    $default  reduce using rule 8 (unsigned_number)
+
+
+state 47
+
+    9 unsigned_number: unsigned_real .
+
+    $default  reduce using rule 9 (unsigned_number)
+
+
+state 48
+
+   21 constant: unsigned_number .
+
+    $default  reduce using rule 21 (constant)
+
+
+state 49
+
+   19 signed_number: sign . unsigned_number
+   20 signed_identifier: sign . id
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+
+    unsigned_integer  go to state 46
+    unsigned_real     go to state 47
+    unsigned_number   go to state 71
+    id                go to state 72
+
+
+state 50
+
+   25 constant: string .
+
+    $default  reduce using rule 25 (constant)
+
+
+state 51
+
+   23 constant: id .
+
+    $default  reduce using rule 23 (constant)
+
+
+state 52
+
+   22 constant: signed_number .
+
+    $default  reduce using rule 22 (constant)
+
+
+state 53
+
+   24 constant: signed_identifier .
+
+    $default  reduce using rule 24 (constant)
+
+
+state 54
+
+   29 constant_definition: id _EQ constant .
+
+    $default  reduce using rule 29 (constant_definition)
+
+
+state 55
+
+  204 constant_definition_list_tail: constant_definition . _SEMICOLON constant_definition_list_tail
+
+    _SEMICOLON  shift, and go to state 73
+
+
+state 56
+
+  202 constant_definition_list: constant_definition _SEMICOLON constant_definition_list_tail .
+
+    $default  reduce using rule 202 (constant_definition_list)
+
+
+state 57
+
+   33 type_definition: id _EQ . type
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _ARRAY       shift, and go to state 74
+    _FILE        shift, and go to state 75
+    _PACKED      shift, and go to state 76
+    _RECORD      shift, and go to state 77
+    _SET         shift, and go to state 78
+    _POINTER     shift, and go to state 79
+    _LPAREN      shift, and go to state 80
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer          go to state 46
+    unsigned_real             go to state 47
+    unsigned_number           go to state 48
+    sign                      go to state 49
+    string                    go to state 50
+    id                        go to state 81
+    signed_number             go to state 52
+    signed_identifier         go to state 53
+    constant                  go to state 82
+    type                      go to state 83
+    simple_type               go to state 84
+    scalar_type               go to state 85
+    subrange_type             go to state 86
+    structured_type           go to state 87
+    packed_structured_type    go to state 88
+    unpacked_structured_type  go to state 89
+    array_type                go to state 90
+    record_type               go to state 91
+    set_type                  go to state 92
+    file_type                 go to state 93
+    pointer_type              go to state 94
+
+
+state 58
+
+  207 type_definition_list: type_definition _SEMICOLON . type_definition_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+
+    $default  reduce using rule 208 (type_definition_list_tail)
+
+    id                         go to state 34
+    type_definition            go to state 95
+    type_definition_list_tail  go to state 96
+
+
+state 59
+
+   69 variable_declaration: idlist . _COLON type
+
+    _COLON  shift, and go to state 97
+
+
+state 60
+
+  212 variable_declaration_list: variable_declaration . _SEMICOLON variable_declaration_list_tail
+
+    _SEMICOLON  shift, and go to state 98
+
+
+state 61
+
+  211 variable_declaration_part: _VAR variable_declaration_list .
+
+    $default  reduce using rule 211 (variable_declaration_part)
+
+
+state 62
+
+  222 function_heading: _FUNCTION . id _LPAREN formal_parameters _RPAREN _COLON id _SEMICOLON
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id  go to state 99
+
+
+state 63
+
+  183 procedure_heading: _PROCEDURE . id _LPAREN formal_parameters _RPAREN _SEMICOLON
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id  go to state 100
+
+
+state 64
+
+  219 procedure_or_function_declaration: procedure_declaration .
+
+    $default  reduce using rule 219 (procedure_or_function_declaration)
+
+
+state 65
+
+  182 procedure_declaration: procedure_heading . label_declaration_part constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list compound_statement
+
+    _LABEL  shift, and go to state 9
+
+    $default  reduce using rule 198 (label_declaration_part)
+
+    label_declaration_part  go to state 101
+
+
+state 66
+
+  223 program: program_heading label_declaration_part constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list . compound_statement _DOT
+
+    _BEGIN  shift, and go to state 102
+
+    compound_statement  go to state 103
+
+
+state 67
+
+  216 procedure_declaration_list: procedure_or_function_declaration . _SEMICOLON procedure_declaration_list_tail
+
+    _SEMICOLON  shift, and go to state 104
+
+
+state 68
+
+  220 procedure_or_function_declaration: function_declaration .
+
+    $default  reduce using rule 220 (procedure_or_function_declaration)
+
+
+state 69
+
+  221 function_declaration: function_heading . label_declaration_part constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list compound_statement
+
+    _LABEL  shift, and go to state 9
+
+    $default  reduce using rule 198 (label_declaration_part)
+
+    label_declaration_part  go to state 105
+
+
+state 70
+
+   40 idtail: _COMMA id idtail .
+
+    $default  reduce using rule 40 (idtail)
+
+
+state 71
+
+   19 signed_number: sign unsigned_number .
+
+    $default  reduce using rule 19 (signed_number)
+
+
+state 72
+
+   20 signed_identifier: sign id .
+
+    $default  reduce using rule 20 (signed_identifier)
+
+
+state 73
+
+  204 constant_definition_list_tail: constant_definition _SEMICOLON . constant_definition_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+
+    $default  reduce using rule 203 (constant_definition_list_tail)
+
+    id                             go to state 23
+    constant_definition            go to state 55
+    constant_definition_list_tail  go to state 106
+
+
+state 74
+
+   49 array_type: _ARRAY . _LBRACKET simple_type_list _RBRACKET _OF type
+
+    _LBRACKET  shift, and go to state 107
+
+
+state 75
+
+   67 file_type: _FILE . _OF type
+
+    _OF  shift, and go to state 108
+
+
+state 76
+
+   44 packed_structured_type: _PACKED . unpacked_structured_type
+
+    _ARRAY   shift, and go to state 74
+    _FILE    shift, and go to state 75
+    _RECORD  shift, and go to state 77
+    _SET     shift, and go to state 78
+
+    unpacked_structured_type  go to state 109
+    array_type                go to state 90
+    record_type               go to state 91
+    set_type                  go to state 92
+    file_type                 go to state 93
+
+
+state 77
+
+   53 record_type: _RECORD . field_list _END
+
+    _IDENTIFIER  shift, and go to state 7
+    _CASE        shift, and go to state 110
+
+    id                 go to state 18
+    idlist             go to state 111
+    field_list         go to state 112
+    field_list_kernel  go to state 113
+    record_section     go to state 114
+    variant_part       go to state 115
+
+
+state 78
+
+   66 set_type: _SET . _OF simple_type
+
+    _OF  shift, and go to state 116
+
+
+state 79
+
+   68 pointer_type: _POINTER . id
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id  go to state 117
+
+
+state 80
+
+   37 scalar_type: _LPAREN . idlist _RPAREN
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id      go to state 18
+    idlist  go to state 118
+
+
+state 81
+
+   23 constant: id .
+   36 simple_type: id .
+
+    _ELLIPSES  reduce using rule 23 (constant)
+    $default   reduce using rule 36 (simple_type)
+
+
+state 82
+
+   41 subrange_type: constant . _ELLIPSES constant
+
+    _ELLIPSES  shift, and go to state 119
+
+
+state 83
+
+   33 type_definition: id _EQ type .
+
+    $default  reduce using rule 33 (type_definition)
+
+
+state 84
+
+   30 type: simple_type .
+
+    $default  reduce using rule 30 (type)
+
+
+state 85
+
+   34 simple_type: scalar_type .
+
+    $default  reduce using rule 34 (simple_type)
+
+
+state 86
+
+   35 simple_type: subrange_type .
+
+    $default  reduce using rule 35 (simple_type)
+
+
+state 87
+
+   31 type: structured_type .
+
+    $default  reduce using rule 31 (type)
+
+
+state 88
+
+   43 structured_type: packed_structured_type .
+
+    $default  reduce using rule 43 (structured_type)
+
+
+state 89
+
+   42 structured_type: unpacked_structured_type .
+
+    $default  reduce using rule 42 (structured_type)
+
+
+state 90
+
+   45 unpacked_structured_type: array_type .
+
+    $default  reduce using rule 45 (unpacked_structured_type)
+
+
+state 91
+
+   46 unpacked_structured_type: record_type .
+
+    $default  reduce using rule 46 (unpacked_structured_type)
+
+
+state 92
+
+   47 unpacked_structured_type: set_type .
+
+    $default  reduce using rule 47 (unpacked_structured_type)
+
+
+state 93
+
+   48 unpacked_structured_type: file_type .
+
+    $default  reduce using rule 48 (unpacked_structured_type)
+
+
+state 94
+
+   32 type: pointer_type .
+
+    $default  reduce using rule 32 (type)
+
+
+state 95
+
+  209 type_definition_list_tail: type_definition . _SEMICOLON type_definition_list_tail
+
+    _SEMICOLON  shift, and go to state 120
+
+
+state 96
+
+  207 type_definition_list: type_definition _SEMICOLON type_definition_list_tail .
+
+    $default  reduce using rule 207 (type_definition_list)
+
+
+state 97
+
+   69 variable_declaration: idlist _COLON . type
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _ARRAY       shift, and go to state 74
+    _FILE        shift, and go to state 75
+    _PACKED      shift, and go to state 76
+    _RECORD      shift, and go to state 77
+    _SET         shift, and go to state 78
+    _POINTER     shift, and go to state 79
+    _LPAREN      shift, and go to state 80
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer          go to state 46
+    unsigned_real             go to state 47
+    unsigned_number           go to state 48
+    sign                      go to state 49
+    string                    go to state 50
+    id                        go to state 81
+    signed_number             go to state 52
+    signed_identifier         go to state 53
+    constant                  go to state 82
+    type                      go to state 121
+    simple_type               go to state 84
+    scalar_type               go to state 85
+    subrange_type             go to state 86
+    structured_type           go to state 87
+    packed_structured_type    go to state 88
+    unpacked_structured_type  go to state 89
+    array_type                go to state 90
+    record_type               go to state 91
+    set_type                  go to state 92
+    file_type                 go to state 93
+    pointer_type              go to state 94
+
+
+state 98
+
+  212 variable_declaration_list: variable_declaration _SEMICOLON . variable_declaration_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+
+    $default  reduce using rule 213 (variable_declaration_list_tail)
+
+    id                              go to state 18
+    idlist                          go to state 59
+    variable_declaration            go to state 122
+    variable_declaration_list_tail  go to state 123
+
+
+state 99
+
+  222 function_heading: _FUNCTION id . _LPAREN formal_parameters _RPAREN _COLON id _SEMICOLON
+
+    _LPAREN  shift, and go to state 124
+
+
+state 100
+
+  183 procedure_heading: _PROCEDURE id . _LPAREN formal_parameters _RPAREN _SEMICOLON
+
+    _LPAREN  shift, and go to state 125
+
+
+state 101
+
+  182 procedure_declaration: procedure_heading label_declaration_part . constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list compound_statement
+
+    _CONST  shift, and go to state 16
+
+    $default  reduce using rule 200 (constant_definition_part)
+
+    constant_definition_part  go to state 126
+
+
+state 102
+
+  154 compound_statement: _BEGIN . statement_list _END
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 128
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 130
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 134
+    _WITH        shift, and go to state 135
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer               go to state 136
+    id                             go to state 137
+    variable                       go to state 138
+    entire_variable                go to state 139
+    component_variable             go to state 140
+    indexed_variable               go to state 141
+    field_designator               go to state 142
+    referenced_variable            go to state 143
+    statement_list                 go to state 144
+    statement                      go to state 145
+    safe_statement                 go to state 146
+    unsafe_statement               go to state 147
+    labeled_safe_statement         go to state 148
+    labeled_unsafe_statement       go to state 149
+    unlabeled_safe_statement       go to state 150
+    unlabeled_unsafe_statement     go to state 151
+    simple_statement               go to state 152
+    assignment_statement           go to state 153
+    output_statement               go to state 154
+    procedure_call                 go to state 155
+    goto_statement                 go to state 156
+    empty_statement                go to state 157
+    safe_structured_statement      go to state 158
+    unsafe_structured_statement    go to state 159
+    compound_statement             go to state 160
+    safe_conditional_statement     go to state 161
+    unsafe_conditional_statement   go to state 162
+    if_then_statement              go to state 163
+    safe_if_then_else_statement    go to state 164
+    unsafe_if_then_else_statement  go to state 165
+    case_statement                 go to state 166
+    safe_repetitive_statement      go to state 167
+    unsafe_repetitive_statement    go to state 168
+    safe_while_statement           go to state 169
+    unsafe_while_statement         go to state 170
+    repeat_statement               go to state 171
+    safe_for_statement             go to state 172
+    unsafe_for_statement           go to state 173
+    safe_with_statement            go to state 174
+    unsafe_with_statement          go to state 175
+
+
+state 103
+
+  223 program: program_heading label_declaration_part constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list compound_statement . _DOT
+
+    _DOT  shift, and go to state 176
+
+
+state 104
+
+  216 procedure_declaration_list: procedure_or_function_declaration _SEMICOLON . procedure_declaration_list_tail
+
+    _FUNCTION   shift, and go to state 62
+    _PROCEDURE  shift, and go to state 63
+
+    $default  reduce using rule 217 (procedure_declaration_list_tail)
+
+    procedure_declaration              go to state 64
+    procedure_heading                  go to state 65
+    procedure_declaration_list_tail    go to state 177
+    procedure_or_function_declaration  go to state 178
+    function_declaration               go to state 68
+    function_heading                   go to state 69
+
+
+state 105
+
+  221 function_declaration: function_heading label_declaration_part . constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list compound_statement
+
+    _CONST  shift, and go to state 16
+
+    $default  reduce using rule 200 (constant_definition_part)
+
+    constant_definition_part  go to state 179
+
+
+state 106
+
+  204 constant_definition_list_tail: constant_definition _SEMICOLON constant_definition_list_tail .
+
+    $default  reduce using rule 204 (constant_definition_list_tail)
+
+
+state 107
+
+   49 array_type: _ARRAY _LBRACKET . simple_type_list _RBRACKET _OF type
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _LPAREN      shift, and go to state 80
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer   go to state 46
+    unsigned_real      go to state 47
+    unsigned_number    go to state 48
+    sign               go to state 49
+    string             go to state 50
+    id                 go to state 81
+    signed_number      go to state 52
+    signed_identifier  go to state 53
+    constant           go to state 82
+    simple_type        go to state 180
+    scalar_type        go to state 85
+    subrange_type      go to state 86
+    simple_type_list   go to state 181
+
+
+state 108
+
+   67 file_type: _FILE _OF . type
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _ARRAY       shift, and go to state 74
+    _FILE        shift, and go to state 75
+    _PACKED      shift, and go to state 76
+    _RECORD      shift, and go to state 77
+    _SET         shift, and go to state 78
+    _POINTER     shift, and go to state 79
+    _LPAREN      shift, and go to state 80
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer          go to state 46
+    unsigned_real             go to state 47
+    unsigned_number           go to state 48
+    sign                      go to state 49
+    string                    go to state 50
+    id                        go to state 81
+    signed_number             go to state 52
+    signed_identifier         go to state 53
+    constant                  go to state 82
+    type                      go to state 182
+    simple_type               go to state 84
+    scalar_type               go to state 85
+    subrange_type             go to state 86
+    structured_type           go to state 87
+    packed_structured_type    go to state 88
+    unpacked_structured_type  go to state 89
+    array_type                go to state 90
+    record_type               go to state 91
+    set_type                  go to state 92
+    file_type                 go to state 93
+    pointer_type              go to state 94
+
+
+state 109
+
+   44 packed_structured_type: _PACKED unpacked_structured_type .
+
+    $default  reduce using rule 44 (packed_structured_type)
+
+
+state 110
+
+   60 variant_part: _CASE . id _COLON id _OF variant_list
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id  go to state 183
+
+
+state 111
+
+   59 record_section: idlist . _COLON type
+
+    _COLON  shift, and go to state 184
+
+
+state 112
+
+   53 record_type: _RECORD field_list . _END
+
+    _END  shift, and go to state 185
+
+
+state 113
+
+   54 field_list: field_list_kernel .
+
+    $default  reduce using rule 54 (field_list)
+
+
+state 114
+
+   55 field_list_kernel: record_section . field_list_tail
+
+    _SEMICOLON  shift, and go to state 186
+
+    $default  reduce using rule 57 (field_list_tail)
+
+    field_list_tail  go to state 187
+
+
+state 115
+
+   56 field_list_kernel: variant_part .
+
+    $default  reduce using rule 56 (field_list_kernel)
+
+
+state 116
+
+   66 set_type: _SET _OF . simple_type
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _LPAREN      shift, and go to state 80
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer   go to state 46
+    unsigned_real      go to state 47
+    unsigned_number    go to state 48
+    sign               go to state 49
+    string             go to state 50
+    id                 go to state 81
+    signed_number      go to state 52
+    signed_identifier  go to state 53
+    constant           go to state 82
+    simple_type        go to state 188
+    scalar_type        go to state 85
+    subrange_type      go to state 86
+
+
+state 117
+
+   68 pointer_type: _POINTER id .
+
+    $default  reduce using rule 68 (pointer_type)
+
+
+state 118
+
+   37 scalar_type: _LPAREN idlist . _RPAREN
+
+    _RPAREN  shift, and go to state 189
+
+
+state 119
+
+   41 subrange_type: constant _ELLIPSES . constant
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer   go to state 46
+    unsigned_real      go to state 47
+    unsigned_number    go to state 48
+    sign               go to state 49
+    string             go to state 50
+    id                 go to state 51
+    signed_number      go to state 52
+    signed_identifier  go to state 53
+    constant           go to state 190
+
+
+state 120
+
+  209 type_definition_list_tail: type_definition _SEMICOLON . type_definition_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+
+    $default  reduce using rule 208 (type_definition_list_tail)
+
+    id                         go to state 34
+    type_definition            go to state 95
+    type_definition_list_tail  go to state 191
+
+
+state 121
+
+   69 variable_declaration: idlist _COLON type .
+
+    $default  reduce using rule 69 (variable_declaration)
+
+
+state 122
+
+  214 variable_declaration_list_tail: variable_declaration . _SEMICOLON variable_declaration_list_tail
+
+    _SEMICOLON  shift, and go to state 192
+
+
+state 123
+
+  212 variable_declaration_list: variable_declaration _SEMICOLON variable_declaration_list_tail .
+
+    $default  reduce using rule 212 (variable_declaration_list)
+
+
+state 124
+
+  222 function_heading: _FUNCTION id _LPAREN . formal_parameters _RPAREN _COLON id _SEMICOLON
+
+    _IDENTIFIER  shift, and go to state 7
+    _FUNCTION    shift, and go to state 193
+    _PROCEDURE   shift, and go to state 194
+    _VAR         shift, and go to state 195
+
+    $default  reduce using rule 184 (formal_parameters)
+
+    id                   go to state 18
+    idlist               go to state 196
+    formal_parameters    go to state 197
+    formals              go to state 198
+    formals_list         go to state 199
+    value_parameter      go to state 200
+    variable_parameter   go to state 201
+    function_parameter   go to state 202
+    procedure_parameter  go to state 203
+    parameter_group      go to state 204
+
+
+state 125
+
+  183 procedure_heading: _PROCEDURE id _LPAREN . formal_parameters _RPAREN _SEMICOLON
+
+    _IDENTIFIER  shift, and go to state 7
+    _FUNCTION    shift, and go to state 193
+    _PROCEDURE   shift, and go to state 194
+    _VAR         shift, and go to state 195
+
+    $default  reduce using rule 184 (formal_parameters)
+
+    id                   go to state 18
+    idlist               go to state 196
+    formal_parameters    go to state 205
+    formals              go to state 198
+    formals_list         go to state 199
+    value_parameter      go to state 200
+    variable_parameter   go to state 201
+    function_parameter   go to state 202
+    procedure_parameter  go to state 203
+    parameter_group      go to state 204
+
+
+state 126
+
+  182 procedure_declaration: procedure_heading label_declaration_part constant_definition_part . type_definition_part variable_declaration_part procedure_declaration_list compound_statement
+
+    _TYPE  shift, and go to state 26
+
+    $default  reduce using rule 205 (type_definition_part)
+
+    type_definition_part  go to state 206
+
+
+state 127
+
+  163 case_statement: _CASE . expr _OF case_element_list _END
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 225
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 128
+
+  176 safe_for_statement: _FOR . id _ASSIGN expr direction expr _DO safe_statement
+  177 unsafe_for_statement: _FOR . id _ASSIGN expr direction expr _DO unsafe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id  go to state 228
+
+
+state 129
+
+  145 goto_statement: _GOTO . unsigned_integer
+
+    _INTEGER  shift, and go to state 13
+
+    unsigned_integer  go to state 229
+
+
+state 130
+
+  160 if_then_statement: _IF . expr $@2 _THEN safe_statement
+  161 safe_if_then_else_statement: _IF . expr _THEN safe_statement _ELSE safe_statement
+  162 unsafe_if_then_else_statement: _IF . expr _THEN safe_statement _ELSE unsafe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 230
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 131
+
+  137 output_statement: _WRITE . _LPAREN write_parameter_list _RPAREN
+
+    _LPAREN  shift, and go to state 231
+
+
+state 132
+
+  138 output_statement: _WRITELN . _LPAREN write_parameter_list _RPAREN
+
+    _LPAREN  shift, and go to state 232
+
+
+state 133
+
+  175 repeat_statement: _REPEAT . statement_list _UNTIL expr
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 128
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 130
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 134
+    _WITH        shift, and go to state 135
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer               go to state 136
+    id                             go to state 137
+    variable                       go to state 138
+    entire_variable                go to state 139
+    component_variable             go to state 140
+    indexed_variable               go to state 141
+    field_designator               go to state 142
+    referenced_variable            go to state 143
+    statement_list                 go to state 233
+    statement                      go to state 145
+    safe_statement                 go to state 146
+    unsafe_statement               go to state 147
+    labeled_safe_statement         go to state 148
+    labeled_unsafe_statement       go to state 149
+    unlabeled_safe_statement       go to state 150
+    unlabeled_unsafe_statement     go to state 151
+    simple_statement               go to state 152
+    assignment_statement           go to state 153
+    output_statement               go to state 154
+    procedure_call                 go to state 155
+    goto_statement                 go to state 156
+    empty_statement                go to state 157
+    safe_structured_statement      go to state 158
+    unsafe_structured_statement    go to state 159
+    compound_statement             go to state 160
+    safe_conditional_statement     go to state 161
+    unsafe_conditional_statement   go to state 162
+    if_then_statement              go to state 163
+    safe_if_then_else_statement    go to state 164
+    unsafe_if_then_else_statement  go to state 165
+    case_statement                 go to state 166
+    safe_repetitive_statement      go to state 167
+    unsafe_repetitive_statement    go to state 168
+    safe_while_statement           go to state 169
+    unsafe_while_statement         go to state 170
+    repeat_statement               go to state 171
+    safe_for_statement             go to state 172
+    unsafe_for_statement           go to state 173
+    safe_with_statement            go to state 174
+    unsafe_with_statement          go to state 175
+
+
+state 134
+
+  173 safe_while_statement: _WHILE . expr _DO safe_statement
+  174 unsafe_while_statement: _WHILE . expr _DO unsafe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 234
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 135
+
+  180 safe_with_statement: _WITH . variable_list _DO safe_statement
+  181 unsafe_with_statement: _WITH . variable_list _DO unsafe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id                   go to state 235
+    variable             go to state 236
+    variable_list        go to state 237
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+
+
+state 136
+
+  126 labeled_safe_statement: unsigned_integer . _COLON unlabeled_safe_statement
+  127 labeled_unsafe_statement: unsigned_integer . _COLON unlabeled_unsafe_statement
+
+    _COLON  shift, and go to state 238
+
+
+state 137
+
+   76 entire_variable: id .
+  143 procedure_call: id .
+  144               | id . _LPAREN expr_list _RPAREN
+
+    _LPAREN  shift, and go to state 239
+
+    _ELSE       reduce using rule 143 (procedure_call)
+    _END        reduce using rule 143 (procedure_call)
+    _UNTIL      reduce using rule 143 (procedure_call)
+    _SEMICOLON  reduce using rule 143 (procedure_call)
+    $default    reduce using rule 76 (entire_variable)
+
+
+state 138
+
+   79 indexed_variable: variable . _LBRACKET expr_list _RBRACKET
+   80 field_designator: variable . _DOT id
+   81 referenced_variable: variable . _POINTER
+  136 assignment_statement: variable . _ASSIGN expr
+
+    _ASSIGN    shift, and go to state 240
+    _POINTER   shift, and go to state 241
+    _LBRACKET  shift, and go to state 242
+    _DOT       shift, and go to state 243
+
+
+state 139
+
+   70 variable: entire_variable .
+
+    $default  reduce using rule 70 (variable)
+
+
+state 140
+
+   71 variable: component_variable .
+
+    $default  reduce using rule 71 (variable)
+
+
+state 141
+
+   77 component_variable: indexed_variable .
+
+    $default  reduce using rule 77 (component_variable)
+
+
+state 142
+
+   78 component_variable: field_designator .
+
+    $default  reduce using rule 78 (component_variable)
+
+
+state 143
+
+   72 variable: referenced_variable .
+
+    $default  reduce using rule 72 (variable)
+
+
+state 144
+
+  154 compound_statement: _BEGIN statement_list . _END
+
+    _END  shift, and go to state 244
+
+
+state 145
+
+  117 statement_list: statement . statement_list_tail
+
+    _SEMICOLON  shift, and go to state 245
+
+    $default  reduce using rule 118 (statement_list_tail)
+
+    statement_list_tail  go to state 246
+
+
+state 146
+
+  120 statement: safe_statement .
+
+    $default  reduce using rule 120 (statement)
+
+
+state 147
+
+  121 statement: unsafe_statement .
+
+    $default  reduce using rule 121 (statement)
+
+
+state 148
+
+  122 safe_statement: labeled_safe_statement .
+
+    $default  reduce using rule 122 (safe_statement)
+
+
+state 149
+
+  124 unsafe_statement: labeled_unsafe_statement .
+
+    $default  reduce using rule 124 (unsafe_statement)
+
+
+state 150
+
+  123 safe_statement: unlabeled_safe_statement .
+
+    $default  reduce using rule 123 (safe_statement)
+
+
+state 151
+
+  125 unsafe_statement: unlabeled_unsafe_statement .
+
+    $default  reduce using rule 125 (unsafe_statement)
+
+
+state 152
+
+  128 unlabeled_safe_statement: simple_statement .
+
+    $default  reduce using rule 128 (unlabeled_safe_statement)
+
+
+state 153
+
+  131 simple_statement: assignment_statement .
+
+    $default  reduce using rule 131 (simple_statement)
+
+
+state 154
+
+  132 simple_statement: output_statement .
+
+    $default  reduce using rule 132 (simple_statement)
+
+
+state 155
+
+  133 simple_statement: procedure_call .
+
+    $default  reduce using rule 133 (simple_statement)
+
+
+state 156
+
+  134 simple_statement: goto_statement .
+
+    $default  reduce using rule 134 (simple_statement)
+
+
+state 157
+
+  135 simple_statement: empty_statement .
+
+    $default  reduce using rule 135 (simple_statement)
+
+
+state 158
+
+  129 unlabeled_safe_statement: safe_structured_statement .
+
+    $default  reduce using rule 129 (unlabeled_safe_statement)
+
+
+state 159
+
+  130 unlabeled_unsafe_statement: unsafe_structured_statement .
+
+    $default  reduce using rule 130 (unlabeled_unsafe_statement)
+
+
+state 160
+
+  147 safe_structured_statement: compound_statement .
+
+    $default  reduce using rule 147 (safe_structured_statement)
+
+
+state 161
+
+  148 safe_structured_statement: safe_conditional_statement .
+
+    $default  reduce using rule 148 (safe_structured_statement)
+
+
+state 162
+
+  151 unsafe_structured_statement: unsafe_conditional_statement .
+
+    $default  reduce using rule 151 (unsafe_structured_statement)
+
+
+state 163
+
+  157 unsafe_conditional_statement: if_then_statement .
+
+    $default  reduce using rule 157 (unsafe_conditional_statement)
+
+
+state 164
+
+  155 safe_conditional_statement: safe_if_then_else_statement .
+
+    $default  reduce using rule 155 (safe_conditional_statement)
+
+
+state 165
+
+  158 unsafe_conditional_statement: unsafe_if_then_else_statement .
+
+    $default  reduce using rule 158 (unsafe_conditional_statement)
+
+
+state 166
+
+  156 safe_conditional_statement: case_statement .
+
+    $default  reduce using rule 156 (safe_conditional_statement)
+
+
+state 167
+
+  149 safe_structured_statement: safe_repetitive_statement .
+
+    $default  reduce using rule 149 (safe_structured_statement)
+
+
+state 168
+
+  152 unsafe_structured_statement: unsafe_repetitive_statement .
+
+    $default  reduce using rule 152 (unsafe_structured_statement)
+
+
+state 169
+
+  168 safe_repetitive_statement: safe_while_statement .
+
+    $default  reduce using rule 168 (safe_repetitive_statement)
+
+
+state 170
+
+  171 unsafe_repetitive_statement: unsafe_while_statement .
+
+    $default  reduce using rule 171 (unsafe_repetitive_statement)
+
+
+state 171
+
+  169 safe_repetitive_statement: repeat_statement .
+
+    $default  reduce using rule 169 (safe_repetitive_statement)
+
+
+state 172
+
+  170 safe_repetitive_statement: safe_for_statement .
+
+    $default  reduce using rule 170 (safe_repetitive_statement)
+
+
+state 173
+
+  172 unsafe_repetitive_statement: unsafe_for_statement .
+
+    $default  reduce using rule 172 (unsafe_repetitive_statement)
+
+
+state 174
+
+  150 safe_structured_statement: safe_with_statement .
+
+    $default  reduce using rule 150 (safe_structured_statement)
+
+
+state 175
+
+  153 unsafe_structured_statement: unsafe_with_statement .
+
+    $default  reduce using rule 153 (unsafe_structured_statement)
+
+
+state 176
+
+  223 program: program_heading label_declaration_part constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list compound_statement _DOT .
+
+    $default  reduce using rule 223 (program)
+
+
+state 177
+
+  216 procedure_declaration_list: procedure_or_function_declaration _SEMICOLON procedure_declaration_list_tail .
+
+    $default  reduce using rule 216 (procedure_declaration_list)
+
+
+state 178
+
+  218 procedure_declaration_list_tail: procedure_or_function_declaration . _SEMICOLON procedure_declaration_list_tail
+
+    _SEMICOLON  shift, and go to state 247
+
+
+state 179
+
+  221 function_declaration: function_heading label_declaration_part constant_definition_part . type_definition_part variable_declaration_part procedure_declaration_list compound_statement
+
+    _TYPE  shift, and go to state 26
+
+    $default  reduce using rule 205 (type_definition_part)
+
+    type_definition_part  go to state 248
+
+
+state 180
+
+   50 simple_type_list: simple_type . simple_type_list_tail
+
+    _COMMA  shift, and go to state 249
+
+    $default  reduce using rule 51 (simple_type_list_tail)
+
+    simple_type_list_tail  go to state 250
+
+
+state 181
+
+   49 array_type: _ARRAY _LBRACKET simple_type_list . _RBRACKET _OF type
+
+    _RBRACKET  shift, and go to state 251
+
+
+state 182
+
+   67 file_type: _FILE _OF type .
+
+    $default  reduce using rule 67 (file_type)
+
+
+state 183
+
+   60 variant_part: _CASE id . _COLON id _OF variant_list
+
+    _COLON  shift, and go to state 252
+
+
+state 184
+
+   59 record_section: idlist _COLON . type
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _ARRAY       shift, and go to state 74
+    _FILE        shift, and go to state 75
+    _PACKED      shift, and go to state 76
+    _RECORD      shift, and go to state 77
+    _SET         shift, and go to state 78
+    _POINTER     shift, and go to state 79
+    _LPAREN      shift, and go to state 80
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer          go to state 46
+    unsigned_real             go to state 47
+    unsigned_number           go to state 48
+    sign                      go to state 49
+    string                    go to state 50
+    id                        go to state 81
+    signed_number             go to state 52
+    signed_identifier         go to state 53
+    constant                  go to state 82
+    type                      go to state 253
+    simple_type               go to state 84
+    scalar_type               go to state 85
+    subrange_type             go to state 86
+    structured_type           go to state 87
+    packed_structured_type    go to state 88
+    unpacked_structured_type  go to state 89
+    array_type                go to state 90
+    record_type               go to state 91
+    set_type                  go to state 92
+    file_type                 go to state 93
+    pointer_type              go to state 94
+
+
+state 185
+
+   53 record_type: _RECORD field_list _END .
+
+    $default  reduce using rule 53 (record_type)
+
+
+state 186
+
+   58 field_list_tail: _SEMICOLON . field_list_kernel
+
+    _IDENTIFIER  shift, and go to state 7
+    _CASE        shift, and go to state 110
+
+    id                 go to state 18
+    idlist             go to state 111
+    field_list_kernel  go to state 254
+    record_section     go to state 114
+    variant_part       go to state 115
+
+
+state 187
+
+   55 field_list_kernel: record_section field_list_tail .
+
+    $default  reduce using rule 55 (field_list_kernel)
+
+
+state 188
+
+   66 set_type: _SET _OF simple_type .
+
+    $default  reduce using rule 66 (set_type)
+
+
+state 189
+
+   37 scalar_type: _LPAREN idlist _RPAREN .
+
+    $default  reduce using rule 37 (scalar_type)
+
+
+state 190
+
+   41 subrange_type: constant _ELLIPSES constant .
+
+    $default  reduce using rule 41 (subrange_type)
+
+
+state 191
+
+  209 type_definition_list_tail: type_definition _SEMICOLON type_definition_list_tail .
+
+    $default  reduce using rule 209 (type_definition_list_tail)
+
+
+state 192
+
+  214 variable_declaration_list_tail: variable_declaration _SEMICOLON . variable_declaration_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+
+    $default  reduce using rule 213 (variable_declaration_list_tail)
+
+    id                              go to state 18
+    idlist                          go to state 59
+    variable_declaration            go to state 122
+    variable_declaration_list_tail  go to state 255
+
+
+state 193
+
+  195 function_parameter: _FUNCTION . parameter_group
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id               go to state 18
+    idlist           go to state 196
+    parameter_group  go to state 256
+
+
+state 194
+
+  196 procedure_parameter: _PROCEDURE . idlist
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id      go to state 18
+    idlist  go to state 257
+
+
+state 195
+
+  194 variable_parameter: _VAR . parameter_group
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id               go to state 18
+    idlist           go to state 196
+    parameter_group  go to state 258
+
+
+state 196
+
+  197 parameter_group: idlist . _COLON id
+
+    _COLON  shift, and go to state 259
+
+
+state 197
+
+  222 function_heading: _FUNCTION id _LPAREN formal_parameters . _RPAREN _COLON id _SEMICOLON
+
+    _RPAREN  shift, and go to state 260
+
+
+state 198
+
+  190 formals_list: formals . formals_list_tail
+
+    _SEMICOLON  shift, and go to state 261
+
+    $default  reduce using rule 191 (formals_list_tail)
+
+    formals_list_tail  go to state 262
+
+
+state 199
+
+  185 formal_parameters: formals_list .
+
+    $default  reduce using rule 185 (formal_parameters)
+
+
+state 200
+
+  186 formals: value_parameter .
+
+    $default  reduce using rule 186 (formals)
+
+
+state 201
+
+  187 formals: variable_parameter .
+
+    $default  reduce using rule 187 (formals)
+
+
+state 202
+
+  188 formals: function_parameter .
+
+    $default  reduce using rule 188 (formals)
+
+
+state 203
+
+  189 formals: procedure_parameter .
+
+    $default  reduce using rule 189 (formals)
+
+
+state 204
+
+  193 value_parameter: parameter_group .
+
+    $default  reduce using rule 193 (value_parameter)
+
+
+state 205
+
+  183 procedure_heading: _PROCEDURE id _LPAREN formal_parameters . _RPAREN _SEMICOLON
+
+    _RPAREN  shift, and go to state 263
+
+
+state 206
+
+  182 procedure_declaration: procedure_heading label_declaration_part constant_definition_part type_definition_part . variable_declaration_part procedure_declaration_list compound_statement
+
+    _VAR  shift, and go to state 37
+
+    $default  reduce using rule 210 (variable_declaration_part)
+
+    variable_declaration_part  go to state 264
+
+
+state 207
+
+   18 unsigned_constant: _FALSE .
+
+    $default  reduce using rule 18 (unsigned_constant)
+
+
+state 208
+
+   16 unsigned_constant: _NIL .
+
+    $default  reduce using rule 16 (unsigned_constant)
+
+
+state 209
+
+   17 unsigned_constant: _TRUE .
+
+    $default  reduce using rule 17 (unsigned_constant)
+
+
+state 210
+
+   86 factor: _LPAREN . expr _RPAREN
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 265
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 211
+
+   88 set: _LBRACKET . expr_list _RBRACKET
+   89    | _LBRACKET . _RBRACKET
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _RBRACKET    shift, and go to state 266
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 267
+    expr_list            go to state 268
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 212
+
+   87 factor: _NOT . factor
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 269
+    set                  go to state 222
+    function_call        go to state 227
+
+
+state 213
+
+  106 addop: _DASH .
+
+    $default  reduce using rule 106 (addop)
+
+
+state 214
+
+  107 addop: _OR .
+
+    $default  reduce using rule 107 (addop)
+
+
+state 215
+
+  105 addop: _PLUS .
+
+    $default  reduce using rule 105 (addop)
+
+
+state 216
+
+   14 unsigned_constant: unsigned_number .
+
+    $default  reduce using rule 14 (unsigned_constant)
+
+
+state 217
+
+   15 unsigned_constant: string .
+
+    $default  reduce using rule 15 (unsigned_constant)
+
+
+state 218
+
+   76 entire_variable: id .
+  115 function_call: id . _LPAREN _RPAREN
+  116              | id . _LPAREN expr_list _RPAREN
+
+    _LPAREN  shift, and go to state 270
+
+    $default  reduce using rule 76 (entire_variable)
+
+
+state 219
+
+   83 factor: unsigned_constant .
+
+    $default  reduce using rule 83 (factor)
+
+
+state 220
+
+   79 indexed_variable: variable . _LBRACKET expr_list _RBRACKET
+   80 field_designator: variable . _DOT id
+   81 referenced_variable: variable . _POINTER
+   82 factor: variable .
+
+    _POINTER   shift, and go to state 241
+    _LBRACKET  shift, and go to state 242
+    _DOT       shift, and go to state 243
+
+    $default  reduce using rule 82 (factor)
+
+
+state 221
+
+   91 term: factor .
+
+    $default  reduce using rule 91 (term)
+
+
+state 222
+
+   85 factor: set .
+
+    $default  reduce using rule 85 (factor)
+
+
+state 223
+
+   90 term: term . mulop factor
+   94 simple: term .
+
+    _AND    shift, and go to state 271
+    _DIV    shift, and go to state 272
+    _MOD    shift, and go to state 273
+    _SLASH  shift, and go to state 274
+    _STAR   shift, and go to state 275
+
+    $default  reduce using rule 94 (simple)
+
+    mulop  go to state 276
+
+
+state 224
+
+   92 simple: simple . addop term
+   95 expr: simple . relop simple
+   96     | simple .
+
+    _IN    shift, and go to state 277
+    _DASH  shift, and go to state 213
+    _OR    shift, and go to state 214
+    _PLUS  shift, and go to state 215
+    _EQ    shift, and go to state 278
+    _GE    shift, and go to state 279
+    _GT    shift, and go to state 280
+    _LE    shift, and go to state 281
+    _LT    shift, and go to state 282
+    _NE    shift, and go to state 283
+
+    $default  reduce using rule 96 (expr)
+
+    addop  go to state 284
+    relop  go to state 285
+
+
+state 225
+
+  163 case_statement: _CASE expr . _OF case_element_list _END
+
+    _OF  shift, and go to state 286
+
+
+state 226
+
+   93 simple: addop . term
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 287
+    function_call        go to state 227
+
+
+state 227
+
+   84 factor: function_call .
+
+    $default  reduce using rule 84 (factor)
+
+
+state 228
+
+  176 safe_for_statement: _FOR id . _ASSIGN expr direction expr _DO safe_statement
+  177 unsafe_for_statement: _FOR id . _ASSIGN expr direction expr _DO unsafe_statement
+
+    _ASSIGN  shift, and go to state 288
+
+
+state 229
+
+  145 goto_statement: _GOTO unsigned_integer .
+
+    $default  reduce using rule 145 (goto_statement)
+
+
+state 230
+
+  160 if_then_statement: _IF expr . $@2 _THEN safe_statement
+  161 safe_if_then_else_statement: _IF expr . _THEN safe_statement _ELSE safe_statement
+  162 unsafe_if_then_else_statement: _IF expr . _THEN safe_statement _ELSE unsafe_statement
+
+    _THEN  shift, and go to state 289
+
+    _THEN  [reduce using rule 159 ($@2)]
+
+    $@2  go to state 290
+
+
+state 231
+
+  137 output_statement: _WRITE _LPAREN . write_parameter_list _RPAREN
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer      go to state 46
+    unsigned_real         go to state 47
+    unsigned_number       go to state 216
+    string                go to state 217
+    id                    go to state 218
+    unsigned_constant     go to state 219
+    variable              go to state 220
+    entire_variable       go to state 139
+    component_variable    go to state 140
+    indexed_variable      go to state 141
+    field_designator      go to state 142
+    referenced_variable   go to state 143
+    factor                go to state 221
+    set                   go to state 222
+    term                  go to state 223
+    simple                go to state 224
+    expr                  go to state 291
+    addop                 go to state 226
+    function_call         go to state 227
+    write_parameter_list  go to state 292
+    write_parameter       go to state 293
+
+
+state 232
+
+  138 output_statement: _WRITELN _LPAREN . write_parameter_list _RPAREN
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer      go to state 46
+    unsigned_real         go to state 47
+    unsigned_number       go to state 216
+    string                go to state 217
+    id                    go to state 218
+    unsigned_constant     go to state 219
+    variable              go to state 220
+    entire_variable       go to state 139
+    component_variable    go to state 140
+    indexed_variable      go to state 141
+    field_designator      go to state 142
+    referenced_variable   go to state 143
+    factor                go to state 221
+    set                   go to state 222
+    term                  go to state 223
+    simple                go to state 224
+    expr                  go to state 291
+    addop                 go to state 226
+    function_call         go to state 227
+    write_parameter_list  go to state 294
+    write_parameter       go to state 293
+
+
+state 233
+
+  175 repeat_statement: _REPEAT statement_list . _UNTIL expr
+
+    _UNTIL  shift, and go to state 295
+
+
+state 234
+
+  173 safe_while_statement: _WHILE expr . _DO safe_statement
+  174 unsafe_while_statement: _WHILE expr . _DO unsafe_statement
+
+    _DO  shift, and go to state 296
+
+
+state 235
+
+   76 entire_variable: id .
+
+    $default  reduce using rule 76 (entire_variable)
+
+
+state 236
+
+   73 variable_list: variable . variable_list_tail
+   79 indexed_variable: variable . _LBRACKET expr_list _RBRACKET
+   80 field_designator: variable . _DOT id
+   81 referenced_variable: variable . _POINTER
+
+    _COMMA     shift, and go to state 297
+    _POINTER   shift, and go to state 241
+    _LBRACKET  shift, and go to state 242
+    _DOT       shift, and go to state 243
+
+    $default  reduce using rule 74 (variable_list_tail)
+
+    variable_list_tail  go to state 298
+
+
+state 237
+
+  180 safe_with_statement: _WITH variable_list . _DO safe_statement
+  181 unsafe_with_statement: _WITH variable_list . _DO unsafe_statement
+
+    _DO  shift, and go to state 299
+
+
+state 238
+
+  126 labeled_safe_statement: unsigned_integer _COLON . unlabeled_safe_statement
+  127 labeled_unsafe_statement: unsigned_integer _COLON . unlabeled_unsafe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 128
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 130
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 134
+    _WITH        shift, and go to state 135
+
+    $default  reduce using rule 146 (empty_statement)
+
+    id                             go to state 137
+    variable                       go to state 138
+    entire_variable                go to state 139
+    component_variable             go to state 140
+    indexed_variable               go to state 141
+    field_designator               go to state 142
+    referenced_variable            go to state 143
+    unlabeled_safe_statement       go to state 300
+    unlabeled_unsafe_statement     go to state 301
+    simple_statement               go to state 152
+    assignment_statement           go to state 153
+    output_statement               go to state 154
+    procedure_call                 go to state 155
+    goto_statement                 go to state 156
+    empty_statement                go to state 157
+    safe_structured_statement      go to state 158
+    unsafe_structured_statement    go to state 159
+    compound_statement             go to state 160
+    safe_conditional_statement     go to state 161
+    unsafe_conditional_statement   go to state 162
+    if_then_statement              go to state 163
+    safe_if_then_else_statement    go to state 164
+    unsafe_if_then_else_statement  go to state 165
+    case_statement                 go to state 166
+    safe_repetitive_statement      go to state 167
+    unsafe_repetitive_statement    go to state 168
+    safe_while_statement           go to state 169
+    unsafe_while_statement         go to state 170
+    repeat_statement               go to state 171
+    safe_for_statement             go to state 172
+    unsafe_for_statement           go to state 173
+    safe_with_statement            go to state 174
+    unsafe_with_statement          go to state 175
+
+
+state 239
+
+  144 procedure_call: id _LPAREN . expr_list _RPAREN
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 267
+    expr_list            go to state 302
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 240
+
+  136 assignment_statement: variable _ASSIGN . expr
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 303
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 241
+
+   81 referenced_variable: variable _POINTER .
+
+    $default  reduce using rule 81 (referenced_variable)
+
+
+state 242
+
+   79 indexed_variable: variable _LBRACKET . expr_list _RBRACKET
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 267
+    expr_list            go to state 304
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 243
+
+   80 field_designator: variable _DOT . id
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id  go to state 305
+
+
+state 244
+
+  154 compound_statement: _BEGIN statement_list _END .
+
+    $default  reduce using rule 154 (compound_statement)
+
+
+state 245
+
+  119 statement_list_tail: _SEMICOLON . statement statement_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 128
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 130
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 134
+    _WITH        shift, and go to state 135
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer               go to state 136
+    id                             go to state 137
+    variable                       go to state 138
+    entire_variable                go to state 139
+    component_variable             go to state 140
+    indexed_variable               go to state 141
+    field_designator               go to state 142
+    referenced_variable            go to state 143
+    statement                      go to state 306
+    safe_statement                 go to state 146
+    unsafe_statement               go to state 147
+    labeled_safe_statement         go to state 148
+    labeled_unsafe_statement       go to state 149
+    unlabeled_safe_statement       go to state 150
+    unlabeled_unsafe_statement     go to state 151
+    simple_statement               go to state 152
+    assignment_statement           go to state 153
+    output_statement               go to state 154
+    procedure_call                 go to state 155
+    goto_statement                 go to state 156
+    empty_statement                go to state 157
+    safe_structured_statement      go to state 158
+    unsafe_structured_statement    go to state 159
+    compound_statement             go to state 160
+    safe_conditional_statement     go to state 161
+    unsafe_conditional_statement   go to state 162
+    if_then_statement              go to state 163
+    safe_if_then_else_statement    go to state 164
+    unsafe_if_then_else_statement  go to state 165
+    case_statement                 go to state 166
+    safe_repetitive_statement      go to state 167
+    unsafe_repetitive_statement    go to state 168
+    safe_while_statement           go to state 169
+    unsafe_while_statement         go to state 170
+    repeat_statement               go to state 171
+    safe_for_statement             go to state 172
+    unsafe_for_statement           go to state 173
+    safe_with_statement            go to state 174
+    unsafe_with_statement          go to state 175
+
+
+state 246
+
+  117 statement_list: statement statement_list_tail .
+
+    $default  reduce using rule 117 (statement_list)
+
+
+state 247
+
+  218 procedure_declaration_list_tail: procedure_or_function_declaration _SEMICOLON . procedure_declaration_list_tail
+
+    _FUNCTION   shift, and go to state 62
+    _PROCEDURE  shift, and go to state 63
+
+    $default  reduce using rule 217 (procedure_declaration_list_tail)
+
+    procedure_declaration              go to state 64
+    procedure_heading                  go to state 65
+    procedure_declaration_list_tail    go to state 307
+    procedure_or_function_declaration  go to state 178
+    function_declaration               go to state 68
+    function_heading                   go to state 69
+
+
+state 248
+
+  221 function_declaration: function_heading label_declaration_part constant_definition_part type_definition_part . variable_declaration_part procedure_declaration_list compound_statement
+
+    _VAR  shift, and go to state 37
+
+    $default  reduce using rule 210 (variable_declaration_part)
+
+    variable_declaration_part  go to state 308
+
+
+state 249
+
+   52 simple_type_list_tail: _COMMA . simple_type simple_type_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _LPAREN      shift, and go to state 80
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer   go to state 46
+    unsigned_real      go to state 47
+    unsigned_number    go to state 48
+    sign               go to state 49
+    string             go to state 50
+    id                 go to state 81
+    signed_number      go to state 52
+    signed_identifier  go to state 53
+    constant           go to state 82
+    simple_type        go to state 309
+    scalar_type        go to state 85
+    subrange_type      go to state 86
+
+
+state 250
+
+   50 simple_type_list: simple_type simple_type_list_tail .
+
+    $default  reduce using rule 50 (simple_type_list)
+
+
+state 251
+
+   49 array_type: _ARRAY _LBRACKET simple_type_list _RBRACKET . _OF type
+
+    _OF  shift, and go to state 310
+
+
+state 252
+
+   60 variant_part: _CASE id _COLON . id _OF variant_list
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id  go to state 311
+
+
+state 253
+
+   59 record_section: idlist _COLON type .
+
+    $default  reduce using rule 59 (record_section)
+
+
+state 254
+
+   58 field_list_tail: _SEMICOLON field_list_kernel .
+
+    $default  reduce using rule 58 (field_list_tail)
+
+
+state 255
+
+  214 variable_declaration_list_tail: variable_declaration _SEMICOLON variable_declaration_list_tail .
+
+    $default  reduce using rule 214 (variable_declaration_list_tail)
+
+
+state 256
+
+  195 function_parameter: _FUNCTION parameter_group .
+
+    $default  reduce using rule 195 (function_parameter)
+
+
+state 257
+
+  196 procedure_parameter: _PROCEDURE idlist .
+
+    $default  reduce using rule 196 (procedure_parameter)
+
+
+state 258
+
+  194 variable_parameter: _VAR parameter_group .
+
+    $default  reduce using rule 194 (variable_parameter)
+
+
+state 259
+
+  197 parameter_group: idlist _COLON . id
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id  go to state 312
+
+
+state 260
+
+  222 function_heading: _FUNCTION id _LPAREN formal_parameters _RPAREN . _COLON id _SEMICOLON
+
+    _COLON  shift, and go to state 313
+
+
+state 261
+
+  192 formals_list_tail: _SEMICOLON . formals formals_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+    _FUNCTION    shift, and go to state 193
+    _PROCEDURE   shift, and go to state 194
+    _VAR         shift, and go to state 195
+
+    id                   go to state 18
+    idlist               go to state 196
+    formals              go to state 314
+    value_parameter      go to state 200
+    variable_parameter   go to state 201
+    function_parameter   go to state 202
+    procedure_parameter  go to state 203
+    parameter_group      go to state 204
+
+
+state 262
+
+  190 formals_list: formals formals_list_tail .
+
+    $default  reduce using rule 190 (formals_list)
+
+
+state 263
+
+  183 procedure_heading: _PROCEDURE id _LPAREN formal_parameters _RPAREN . _SEMICOLON
+
+    _SEMICOLON  shift, and go to state 315
+
+
+state 264
+
+  182 procedure_declaration: procedure_heading label_declaration_part constant_definition_part type_definition_part variable_declaration_part . procedure_declaration_list compound_statement
+
+    _FUNCTION   shift, and go to state 62
+    _PROCEDURE  shift, and go to state 63
+
+    $default  reduce using rule 215 (procedure_declaration_list)
+
+    procedure_declaration              go to state 64
+    procedure_heading                  go to state 65
+    procedure_declaration_list         go to state 316
+    procedure_or_function_declaration  go to state 67
+    function_declaration               go to state 68
+    function_heading                   go to state 69
+
+
+state 265
+
+   86 factor: _LPAREN expr . _RPAREN
+
+    _RPAREN  shift, and go to state 317
+
+
+state 266
+
+   89 set: _LBRACKET _RBRACKET .
+
+    $default  reduce using rule 89 (set)
+
+
+state 267
+
+   97 expr_list: expr . expr_list_tail
+
+    _COMMA  shift, and go to state 318
+
+    $default  reduce using rule 98 (expr_list_tail)
+
+    expr_list_tail  go to state 319
+
+
+state 268
+
+   88 set: _LBRACKET expr_list . _RBRACKET
+
+    _RBRACKET  shift, and go to state 320
+
+
+state 269
+
+   87 factor: _NOT factor .
+
+    $default  reduce using rule 87 (factor)
+
+
+state 270
+
+  115 function_call: id _LPAREN . _RPAREN
+  116              | id _LPAREN . expr_list _RPAREN
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _RPAREN      shift, and go to state 321
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 267
+    expr_list            go to state 322
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 271
+
+  104 mulop: _AND .
+
+    $default  reduce using rule 104 (mulop)
+
+
+state 272
+
+  102 mulop: _DIV .
+
+    $default  reduce using rule 102 (mulop)
+
+
+state 273
+
+  103 mulop: _MOD .
+
+    $default  reduce using rule 103 (mulop)
+
+
+state 274
+
+  101 mulop: _SLASH .
+
+    $default  reduce using rule 101 (mulop)
+
+
+state 275
+
+  100 mulop: _STAR .
+
+    $default  reduce using rule 100 (mulop)
+
+
+state 276
+
+   90 term: term mulop . factor
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 323
+    set                  go to state 222
+    function_call        go to state 227
+
+
+state 277
+
+  114 relop: _IN .
+
+    $default  reduce using rule 114 (relop)
+
+
+state 278
+
+  110 relop: _EQ .
+
+    $default  reduce using rule 110 (relop)
+
+
+state 279
+
+  112 relop: _GE .
+
+    $default  reduce using rule 112 (relop)
+
+
+state 280
+
+  113 relop: _GT .
+
+    $default  reduce using rule 113 (relop)
+
+
+state 281
+
+  109 relop: _LE .
+
+    $default  reduce using rule 109 (relop)
+
+
+state 282
+
+  108 relop: _LT .
+
+    $default  reduce using rule 108 (relop)
+
+
+state 283
+
+  111 relop: _NE .
+
+    $default  reduce using rule 111 (relop)
+
+
+state 284
+
+   92 simple: simple addop . term
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 324
+    function_call        go to state 227
+
+
+state 285
+
+   95 expr: simple relop . simple
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 325
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 286
+
+  163 case_statement: _CASE expr _OF . case_element_list _END
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer   go to state 46
+    unsigned_real      go to state 47
+    unsigned_number    go to state 48
+    sign               go to state 49
+    string             go to state 50
+    id                 go to state 51
+    signed_number      go to state 52
+    signed_identifier  go to state 53
+    constant           go to state 326
+    constant_list      go to state 327
+    case_element       go to state 328
+    case_element_list  go to state 329
+
+
+state 287
+
+   90 term: term . mulop factor
+   93 simple: addop term .
+
+    _AND    shift, and go to state 271
+    _DIV    shift, and go to state 272
+    _MOD    shift, and go to state 273
+    _SLASH  shift, and go to state 274
+    _STAR   shift, and go to state 275
+
+    $default  reduce using rule 93 (simple)
+
+    mulop  go to state 276
+
+
+state 288
+
+  176 safe_for_statement: _FOR id _ASSIGN . expr direction expr _DO safe_statement
+  177 unsafe_for_statement: _FOR id _ASSIGN . expr direction expr _DO unsafe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 330
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 289
+
+  161 safe_if_then_else_statement: _IF expr _THEN . safe_statement _ELSE safe_statement
+  162 unsafe_if_then_else_statement: _IF expr _THEN . safe_statement _ELSE unsafe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 331
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 332
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 333
+    _WITH        shift, and go to state 334
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer             go to state 335
+    id                           go to state 137
+    variable                     go to state 138
+    entire_variable              go to state 139
+    component_variable           go to state 140
+    indexed_variable             go to state 141
+    field_designator             go to state 142
+    referenced_variable          go to state 143
+    safe_statement               go to state 336
+    labeled_safe_statement       go to state 148
+    unlabeled_safe_statement     go to state 150
+    simple_statement             go to state 152
+    assignment_statement         go to state 153
+    output_statement             go to state 154
+    procedure_call               go to state 155
+    goto_statement               go to state 156
+    empty_statement              go to state 157
+    safe_structured_statement    go to state 158
+    compound_statement           go to state 160
+    safe_conditional_statement   go to state 161
+    safe_if_then_else_statement  go to state 164
+    case_statement               go to state 166
+    safe_repetitive_statement    go to state 167
+    safe_while_statement         go to state 169
+    repeat_statement             go to state 171
+    safe_for_statement           go to state 172
+    safe_with_statement          go to state 174
+
+
+state 290
+
+  160 if_then_statement: _IF expr $@2 . _THEN safe_statement
+
+    _THEN  shift, and go to state 337
+
+
+state 291
+
+  142 write_parameter: expr .
+
+    $default  reduce using rule 142 (write_parameter)
+
+
+state 292
+
+  137 output_statement: _WRITE _LPAREN write_parameter_list . _RPAREN
+
+    _RPAREN  shift, and go to state 338
+
+
+state 293
+
+  139 write_parameter_list: write_parameter . write_parameter_list_tail
+
+    _COMMA  shift, and go to state 339
+
+    $default  reduce using rule 140 (write_parameter_list_tail)
+
+    write_parameter_list_tail  go to state 340
+
+
+state 294
+
+  138 output_statement: _WRITELN _LPAREN write_parameter_list . _RPAREN
+
+    _RPAREN  shift, and go to state 341
+
+
+state 295
+
+  175 repeat_statement: _REPEAT statement_list _UNTIL . expr
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 342
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 296
+
+  173 safe_while_statement: _WHILE expr _DO . safe_statement
+  174 unsafe_while_statement: _WHILE expr _DO . unsafe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 128
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 130
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 134
+    _WITH        shift, and go to state 135
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer               go to state 136
+    id                             go to state 137
+    variable                       go to state 138
+    entire_variable                go to state 139
+    component_variable             go to state 140
+    indexed_variable               go to state 141
+    field_designator               go to state 142
+    referenced_variable            go to state 143
+    safe_statement                 go to state 343
+    unsafe_statement               go to state 344
+    labeled_safe_statement         go to state 148
+    labeled_unsafe_statement       go to state 149
+    unlabeled_safe_statement       go to state 150
+    unlabeled_unsafe_statement     go to state 151
+    simple_statement               go to state 152
+    assignment_statement           go to state 153
+    output_statement               go to state 154
+    procedure_call                 go to state 155
+    goto_statement                 go to state 156
+    empty_statement                go to state 157
+    safe_structured_statement      go to state 158
+    unsafe_structured_statement    go to state 159
+    compound_statement             go to state 160
+    safe_conditional_statement     go to state 161
+    unsafe_conditional_statement   go to state 162
+    if_then_statement              go to state 163
+    safe_if_then_else_statement    go to state 164
+    unsafe_if_then_else_statement  go to state 165
+    case_statement                 go to state 166
+    safe_repetitive_statement      go to state 167
+    unsafe_repetitive_statement    go to state 168
+    safe_while_statement           go to state 169
+    unsafe_while_statement         go to state 170
+    repeat_statement               go to state 171
+    safe_for_statement             go to state 172
+    unsafe_for_statement           go to state 173
+    safe_with_statement            go to state 174
+    unsafe_with_statement          go to state 175
+
+
+state 297
+
+   75 variable_list_tail: _COMMA . variable variable_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id                   go to state 235
+    variable             go to state 345
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+
+
+state 298
+
+   73 variable_list: variable variable_list_tail .
+
+    $default  reduce using rule 73 (variable_list)
+
+
+state 299
+
+  180 safe_with_statement: _WITH variable_list _DO . safe_statement
+  181 unsafe_with_statement: _WITH variable_list _DO . unsafe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 128
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 130
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 134
+    _WITH        shift, and go to state 135
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer               go to state 136
+    id                             go to state 137
+    variable                       go to state 138
+    entire_variable                go to state 139
+    component_variable             go to state 140
+    indexed_variable               go to state 141
+    field_designator               go to state 142
+    referenced_variable            go to state 143
+    safe_statement                 go to state 346
+    unsafe_statement               go to state 347
+    labeled_safe_statement         go to state 148
+    labeled_unsafe_statement       go to state 149
+    unlabeled_safe_statement       go to state 150
+    unlabeled_unsafe_statement     go to state 151
+    simple_statement               go to state 152
+    assignment_statement           go to state 153
+    output_statement               go to state 154
+    procedure_call                 go to state 155
+    goto_statement                 go to state 156
+    empty_statement                go to state 157
+    safe_structured_statement      go to state 158
+    unsafe_structured_statement    go to state 159
+    compound_statement             go to state 160
+    safe_conditional_statement     go to state 161
+    unsafe_conditional_statement   go to state 162
+    if_then_statement              go to state 163
+    safe_if_then_else_statement    go to state 164
+    unsafe_if_then_else_statement  go to state 165
+    case_statement                 go to state 166
+    safe_repetitive_statement      go to state 167
+    unsafe_repetitive_statement    go to state 168
+    safe_while_statement           go to state 169
+    unsafe_while_statement         go to state 170
+    repeat_statement               go to state 171
+    safe_for_statement             go to state 172
+    unsafe_for_statement           go to state 173
+    safe_with_statement            go to state 174
+    unsafe_with_statement          go to state 175
+
+
+state 300
+
+  126 labeled_safe_statement: unsigned_integer _COLON unlabeled_safe_statement .
+
+    $default  reduce using rule 126 (labeled_safe_statement)
+
+
+state 301
+
+  127 labeled_unsafe_statement: unsigned_integer _COLON unlabeled_unsafe_statement .
+
+    $default  reduce using rule 127 (labeled_unsafe_statement)
+
+
+state 302
+
+  144 procedure_call: id _LPAREN expr_list . _RPAREN
+
+    _RPAREN  shift, and go to state 348
+
+
+state 303
+
+  136 assignment_statement: variable _ASSIGN expr .
+
+    $default  reduce using rule 136 (assignment_statement)
+
+
+state 304
+
+   79 indexed_variable: variable _LBRACKET expr_list . _RBRACKET
+
+    _RBRACKET  shift, and go to state 349
+
+
+state 305
+
+   80 field_designator: variable _DOT id .
+
+    $default  reduce using rule 80 (field_designator)
+
+
+state 306
+
+  119 statement_list_tail: _SEMICOLON statement . statement_list_tail
+
+    _SEMICOLON  shift, and go to state 245
+
+    $default  reduce using rule 118 (statement_list_tail)
+
+    statement_list_tail  go to state 350
+
+
+state 307
+
+  218 procedure_declaration_list_tail: procedure_or_function_declaration _SEMICOLON procedure_declaration_list_tail .
+
+    $default  reduce using rule 218 (procedure_declaration_list_tail)
+
+
+state 308
+
+  221 function_declaration: function_heading label_declaration_part constant_definition_part type_definition_part variable_declaration_part . procedure_declaration_list compound_statement
+
+    _FUNCTION   shift, and go to state 62
+    _PROCEDURE  shift, and go to state 63
+
+    $default  reduce using rule 215 (procedure_declaration_list)
+
+    procedure_declaration              go to state 64
+    procedure_heading                  go to state 65
+    procedure_declaration_list         go to state 351
+    procedure_or_function_declaration  go to state 67
+    function_declaration               go to state 68
+    function_heading                   go to state 69
+
+
+state 309
+
+   52 simple_type_list_tail: _COMMA simple_type . simple_type_list_tail
+
+    _COMMA  shift, and go to state 249
+
+    $default  reduce using rule 51 (simple_type_list_tail)
+
+    simple_type_list_tail  go to state 352
+
+
+state 310
+
+   49 array_type: _ARRAY _LBRACKET simple_type_list _RBRACKET _OF . type
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _ARRAY       shift, and go to state 74
+    _FILE        shift, and go to state 75
+    _PACKED      shift, and go to state 76
+    _RECORD      shift, and go to state 77
+    _SET         shift, and go to state 78
+    _POINTER     shift, and go to state 79
+    _LPAREN      shift, and go to state 80
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer          go to state 46
+    unsigned_real             go to state 47
+    unsigned_number           go to state 48
+    sign                      go to state 49
+    string                    go to state 50
+    id                        go to state 81
+    signed_number             go to state 52
+    signed_identifier         go to state 53
+    constant                  go to state 82
+    type                      go to state 353
+    simple_type               go to state 84
+    scalar_type               go to state 85
+    subrange_type             go to state 86
+    structured_type           go to state 87
+    packed_structured_type    go to state 88
+    unpacked_structured_type  go to state 89
+    array_type                go to state 90
+    record_type               go to state 91
+    set_type                  go to state 92
+    file_type                 go to state 93
+    pointer_type              go to state 94
+
+
+state 311
+
+   60 variant_part: _CASE id _COLON id . _OF variant_list
+
+    _OF  shift, and go to state 354
+
+
+state 312
+
+  197 parameter_group: idlist _COLON id .
+
+    $default  reduce using rule 197 (parameter_group)
+
+
+state 313
+
+  222 function_heading: _FUNCTION id _LPAREN formal_parameters _RPAREN _COLON . id _SEMICOLON
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id  go to state 355
+
+
+state 314
+
+  192 formals_list_tail: _SEMICOLON formals . formals_list_tail
+
+    _SEMICOLON  shift, and go to state 261
+
+    $default  reduce using rule 191 (formals_list_tail)
+
+    formals_list_tail  go to state 356
+
+
+state 315
+
+  183 procedure_heading: _PROCEDURE id _LPAREN formal_parameters _RPAREN _SEMICOLON .
+
+    $default  reduce using rule 183 (procedure_heading)
+
+
+state 316
+
+  182 procedure_declaration: procedure_heading label_declaration_part constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list . compound_statement
+
+    _BEGIN  shift, and go to state 102
+
+    compound_statement  go to state 357
+
+
+state 317
+
+   86 factor: _LPAREN expr _RPAREN .
+
+    $default  reduce using rule 86 (factor)
+
+
+state 318
+
+   99 expr_list_tail: _COMMA . expr expr_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 358
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 319
+
+   97 expr_list: expr expr_list_tail .
+
+    $default  reduce using rule 97 (expr_list)
+
+
+state 320
+
+   88 set: _LBRACKET expr_list _RBRACKET .
+
+    $default  reduce using rule 88 (set)
+
+
+state 321
+
+  115 function_call: id _LPAREN _RPAREN .
+
+    $default  reduce using rule 115 (function_call)
+
+
+state 322
+
+  116 function_call: id _LPAREN expr_list . _RPAREN
+
+    _RPAREN  shift, and go to state 359
+
+
+state 323
+
+   90 term: term mulop factor .
+
+    $default  reduce using rule 90 (term)
+
+
+state 324
+
+   90 term: term . mulop factor
+   92 simple: simple addop term .
+
+    _AND    shift, and go to state 271
+    _DIV    shift, and go to state 272
+    _MOD    shift, and go to state 273
+    _SLASH  shift, and go to state 274
+    _STAR   shift, and go to state 275
+
+    $default  reduce using rule 92 (simple)
+
+    mulop  go to state 276
+
+
+state 325
+
+   92 simple: simple . addop term
+   95 expr: simple relop simple .
+
+    _DASH  shift, and go to state 213
+    _OR    shift, and go to state 214
+    _PLUS  shift, and go to state 215
+
+    $default  reduce using rule 95 (expr)
+
+    addop  go to state 284
+
+
+state 326
+
+   26 constant_list: constant . constant_list_tail
+
+    _COMMA  shift, and go to state 360
+
+    $default  reduce using rule 27 (constant_list_tail)
+
+    constant_list_tail  go to state 361
+
+
+state 327
+
+  164 case_element: constant_list . _COLON statement
+
+    _COLON  shift, and go to state 362
+
+
+state 328
+
+  165 case_element_list: case_element . case_element_list_tail
+
+    _SEMICOLON  shift, and go to state 363
+
+    $default  reduce using rule 166 (case_element_list_tail)
+
+    case_element_list_tail  go to state 364
+
+
+state 329
+
+  163 case_statement: _CASE expr _OF case_element_list . _END
+
+    _END  shift, and go to state 365
+
+
+state 330
+
+  176 safe_for_statement: _FOR id _ASSIGN expr . direction expr _DO safe_statement
+  177 unsafe_for_statement: _FOR id _ASSIGN expr . direction expr _DO unsafe_statement
+
+    _DOWNTO  shift, and go to state 366
+    _TO      shift, and go to state 367
+
+    direction  go to state 368
+
+
+state 331
+
+  176 safe_for_statement: _FOR . id _ASSIGN expr direction expr _DO safe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id  go to state 369
+
+
+state 332
+
+  161 safe_if_then_else_statement: _IF . expr _THEN safe_statement _ELSE safe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 370
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 333
+
+  173 safe_while_statement: _WHILE . expr _DO safe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 371
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 334
+
+  180 safe_with_statement: _WITH . variable_list _DO safe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+
+    id                   go to state 235
+    variable             go to state 236
+    variable_list        go to state 372
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+
+
+state 335
+
+  126 labeled_safe_statement: unsigned_integer . _COLON unlabeled_safe_statement
+
+    _COLON  shift, and go to state 373
+
+
+state 336
+
+  161 safe_if_then_else_statement: _IF expr _THEN safe_statement . _ELSE safe_statement
+  162 unsafe_if_then_else_statement: _IF expr _THEN safe_statement . _ELSE unsafe_statement
+
+    _ELSE  shift, and go to state 374
+
+
+state 337
+
+  160 if_then_statement: _IF expr $@2 _THEN . safe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 331
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 332
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 333
+    _WITH        shift, and go to state 334
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer             go to state 335
+    id                           go to state 137
+    variable                     go to state 138
+    entire_variable              go to state 139
+    component_variable           go to state 140
+    indexed_variable             go to state 141
+    field_designator             go to state 142
+    referenced_variable          go to state 143
+    safe_statement               go to state 375
+    labeled_safe_statement       go to state 148
+    unlabeled_safe_statement     go to state 150
+    simple_statement             go to state 152
+    assignment_statement         go to state 153
+    output_statement             go to state 154
+    procedure_call               go to state 155
+    goto_statement               go to state 156
+    empty_statement              go to state 157
+    safe_structured_statement    go to state 158
+    compound_statement           go to state 160
+    safe_conditional_statement   go to state 161
+    safe_if_then_else_statement  go to state 164
+    case_statement               go to state 166
+    safe_repetitive_statement    go to state 167
+    safe_while_statement         go to state 169
+    repeat_statement             go to state 171
+    safe_for_statement           go to state 172
+    safe_with_statement          go to state 174
+
+
+state 338
+
+  137 output_statement: _WRITE _LPAREN write_parameter_list _RPAREN .
+
+    $default  reduce using rule 137 (output_statement)
+
+
+state 339
+
+  141 write_parameter_list_tail: _COMMA . write_parameter write_parameter_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 291
+    addop                go to state 226
+    function_call        go to state 227
+    write_parameter      go to state 376
+
+
+state 340
+
+  139 write_parameter_list: write_parameter write_parameter_list_tail .
+
+    $default  reduce using rule 139 (write_parameter_list)
+
+
+state 341
+
+  138 output_statement: _WRITELN _LPAREN write_parameter_list _RPAREN .
+
+    $default  reduce using rule 138 (output_statement)
+
+
+state 342
+
+  175 repeat_statement: _REPEAT statement_list _UNTIL expr .
+
+    $default  reduce using rule 175 (repeat_statement)
+
+
+state 343
+
+  173 safe_while_statement: _WHILE expr _DO safe_statement .
+
+    $default  reduce using rule 173 (safe_while_statement)
+
+
+state 344
+
+  174 unsafe_while_statement: _WHILE expr _DO unsafe_statement .
+
+    $default  reduce using rule 174 (unsafe_while_statement)
+
+
+state 345
+
+   75 variable_list_tail: _COMMA variable . variable_list_tail
+   79 indexed_variable: variable . _LBRACKET expr_list _RBRACKET
+   80 field_designator: variable . _DOT id
+   81 referenced_variable: variable . _POINTER
+
+    _COMMA     shift, and go to state 297
+    _POINTER   shift, and go to state 241
+    _LBRACKET  shift, and go to state 242
+    _DOT       shift, and go to state 243
+
+    $default  reduce using rule 74 (variable_list_tail)
+
+    variable_list_tail  go to state 377
+
+
+state 346
+
+  180 safe_with_statement: _WITH variable_list _DO safe_statement .
+
+    $default  reduce using rule 180 (safe_with_statement)
+
+
+state 347
+
+  181 unsafe_with_statement: _WITH variable_list _DO unsafe_statement .
+
+    $default  reduce using rule 181 (unsafe_with_statement)
+
+
+state 348
+
+  144 procedure_call: id _LPAREN expr_list _RPAREN .
+
+    $default  reduce using rule 144 (procedure_call)
+
+
+state 349
+
+   79 indexed_variable: variable _LBRACKET expr_list _RBRACKET .
+
+    $default  reduce using rule 79 (indexed_variable)
+
+
+state 350
+
+  119 statement_list_tail: _SEMICOLON statement statement_list_tail .
+
+    $default  reduce using rule 119 (statement_list_tail)
+
+
+state 351
+
+  221 function_declaration: function_heading label_declaration_part constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list . compound_statement
+
+    _BEGIN  shift, and go to state 102
+
+    compound_statement  go to state 378
+
+
+state 352
+
+   52 simple_type_list_tail: _COMMA simple_type simple_type_list_tail .
+
+    $default  reduce using rule 52 (simple_type_list_tail)
+
+
+state 353
+
+   49 array_type: _ARRAY _LBRACKET simple_type_list _RBRACKET _OF type .
+
+    $default  reduce using rule 49 (array_type)
+
+
+state 354
+
+   60 variant_part: _CASE id _COLON id _OF . variant_list
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer   go to state 46
+    unsigned_real      go to state 47
+    unsigned_number    go to state 48
+    sign               go to state 49
+    string             go to state 50
+    id                 go to state 51
+    signed_number      go to state 52
+    signed_identifier  go to state 53
+    constant           go to state 326
+    constant_list      go to state 379
+    variant            go to state 380
+    variant_list       go to state 381
+
+
+state 355
+
+  222 function_heading: _FUNCTION id _LPAREN formal_parameters _RPAREN _COLON id . _SEMICOLON
+
+    _SEMICOLON  shift, and go to state 382
+
+
+state 356
+
+  192 formals_list_tail: _SEMICOLON formals formals_list_tail .
+
+    $default  reduce using rule 192 (formals_list_tail)
+
+
+state 357
+
+  182 procedure_declaration: procedure_heading label_declaration_part constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list compound_statement .
+
+    $default  reduce using rule 182 (procedure_declaration)
+
+
+state 358
+
+   99 expr_list_tail: _COMMA expr . expr_list_tail
+
+    _COMMA  shift, and go to state 318
+
+    $default  reduce using rule 98 (expr_list_tail)
+
+    expr_list_tail  go to state 383
+
+
+state 359
+
+  116 function_call: id _LPAREN expr_list _RPAREN .
+
+    $default  reduce using rule 116 (function_call)
+
+
+state 360
+
+   28 constant_list_tail: _COMMA . constant constant_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer   go to state 46
+    unsigned_real      go to state 47
+    unsigned_number    go to state 48
+    sign               go to state 49
+    string             go to state 50
+    id                 go to state 51
+    signed_number      go to state 52
+    signed_identifier  go to state 53
+    constant           go to state 384
+
+
+state 361
+
+   26 constant_list: constant constant_list_tail .
+
+    $default  reduce using rule 26 (constant_list)
+
+
+state 362
+
+  164 case_element: constant_list _COLON . statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 128
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 130
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 134
+    _WITH        shift, and go to state 135
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer               go to state 136
+    id                             go to state 137
+    variable                       go to state 138
+    entire_variable                go to state 139
+    component_variable             go to state 140
+    indexed_variable               go to state 141
+    field_designator               go to state 142
+    referenced_variable            go to state 143
+    statement                      go to state 385
+    safe_statement                 go to state 146
+    unsafe_statement               go to state 147
+    labeled_safe_statement         go to state 148
+    labeled_unsafe_statement       go to state 149
+    unlabeled_safe_statement       go to state 150
+    unlabeled_unsafe_statement     go to state 151
+    simple_statement               go to state 152
+    assignment_statement           go to state 153
+    output_statement               go to state 154
+    procedure_call                 go to state 155
+    goto_statement                 go to state 156
+    empty_statement                go to state 157
+    safe_structured_statement      go to state 158
+    unsafe_structured_statement    go to state 159
+    compound_statement             go to state 160
+    safe_conditional_statement     go to state 161
+    unsafe_conditional_statement   go to state 162
+    if_then_statement              go to state 163
+    safe_if_then_else_statement    go to state 164
+    unsafe_if_then_else_statement  go to state 165
+    case_statement                 go to state 166
+    safe_repetitive_statement      go to state 167
+    unsafe_repetitive_statement    go to state 168
+    safe_while_statement           go to state 169
+    unsafe_while_statement         go to state 170
+    repeat_statement               go to state 171
+    safe_for_statement             go to state 172
+    unsafe_for_statement           go to state 173
+    safe_with_statement            go to state 174
+    unsafe_with_statement          go to state 175
+
+
+state 363
+
+  167 case_element_list_tail: _SEMICOLON . case_element case_element_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer   go to state 46
+    unsigned_real      go to state 47
+    unsigned_number    go to state 48
+    sign               go to state 49
+    string             go to state 50
+    id                 go to state 51
+    signed_number      go to state 52
+    signed_identifier  go to state 53
+    constant           go to state 326
+    constant_list      go to state 327
+    case_element       go to state 386
+
+
+state 364
+
+  165 case_element_list: case_element case_element_list_tail .
+
+    $default  reduce using rule 165 (case_element_list)
+
+
+state 365
+
+  163 case_statement: _CASE expr _OF case_element_list _END .
+
+    $default  reduce using rule 163 (case_statement)
+
+
+state 366
+
+  179 direction: _DOWNTO .
+
+    $default  reduce using rule 179 (direction)
+
+
+state 367
+
+  178 direction: _TO .
+
+    $default  reduce using rule 178 (direction)
+
+
+state 368
+
+  176 safe_for_statement: _FOR id _ASSIGN expr direction . expr _DO safe_statement
+  177 unsafe_for_statement: _FOR id _ASSIGN expr direction . expr _DO unsafe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 387
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 369
+
+  176 safe_for_statement: _FOR id . _ASSIGN expr direction expr _DO safe_statement
+
+    _ASSIGN  shift, and go to state 388
+
+
+state 370
+
+  161 safe_if_then_else_statement: _IF expr . _THEN safe_statement _ELSE safe_statement
+
+    _THEN  shift, and go to state 389
+
+
+state 371
+
+  173 safe_while_statement: _WHILE expr . _DO safe_statement
+
+    _DO  shift, and go to state 390
+
+
+state 372
+
+  180 safe_with_statement: _WITH variable_list . _DO safe_statement
+
+    _DO  shift, and go to state 391
+
+
+state 373
+
+  126 labeled_safe_statement: unsigned_integer _COLON . unlabeled_safe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 331
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 332
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 333
+    _WITH        shift, and go to state 334
+
+    $default  reduce using rule 146 (empty_statement)
+
+    id                           go to state 137
+    variable                     go to state 138
+    entire_variable              go to state 139
+    component_variable           go to state 140
+    indexed_variable             go to state 141
+    field_designator             go to state 142
+    referenced_variable          go to state 143
+    unlabeled_safe_statement     go to state 300
+    simple_statement             go to state 152
+    assignment_statement         go to state 153
+    output_statement             go to state 154
+    procedure_call               go to state 155
+    goto_statement               go to state 156
+    empty_statement              go to state 157
+    safe_structured_statement    go to state 158
+    compound_statement           go to state 160
+    safe_conditional_statement   go to state 161
+    safe_if_then_else_statement  go to state 164
+    case_statement               go to state 166
+    safe_repetitive_statement    go to state 167
+    safe_while_statement         go to state 169
+    repeat_statement             go to state 171
+    safe_for_statement           go to state 172
+    safe_with_statement          go to state 174
+
+
+state 374
+
+  161 safe_if_then_else_statement: _IF expr _THEN safe_statement _ELSE . safe_statement
+  162 unsafe_if_then_else_statement: _IF expr _THEN safe_statement _ELSE . unsafe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 128
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 130
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 134
+    _WITH        shift, and go to state 135
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer               go to state 136
+    id                             go to state 137
+    variable                       go to state 138
+    entire_variable                go to state 139
+    component_variable             go to state 140
+    indexed_variable               go to state 141
+    field_designator               go to state 142
+    referenced_variable            go to state 143
+    safe_statement                 go to state 392
+    unsafe_statement               go to state 393
+    labeled_safe_statement         go to state 148
+    labeled_unsafe_statement       go to state 149
+    unlabeled_safe_statement       go to state 150
+    unlabeled_unsafe_statement     go to state 151
+    simple_statement               go to state 152
+    assignment_statement           go to state 153
+    output_statement               go to state 154
+    procedure_call                 go to state 155
+    goto_statement                 go to state 156
+    empty_statement                go to state 157
+    safe_structured_statement      go to state 158
+    unsafe_structured_statement    go to state 159
+    compound_statement             go to state 160
+    safe_conditional_statement     go to state 161
+    unsafe_conditional_statement   go to state 162
+    if_then_statement              go to state 163
+    safe_if_then_else_statement    go to state 164
+    unsafe_if_then_else_statement  go to state 165
+    case_statement                 go to state 166
+    safe_repetitive_statement      go to state 167
+    unsafe_repetitive_statement    go to state 168
+    safe_while_statement           go to state 169
+    unsafe_while_statement         go to state 170
+    repeat_statement               go to state 171
+    safe_for_statement             go to state 172
+    unsafe_for_statement           go to state 173
+    safe_with_statement            go to state 174
+    unsafe_with_statement          go to state 175
+
+
+state 375
+
+  160 if_then_statement: _IF expr $@2 _THEN safe_statement .
+
+    $default  reduce using rule 160 (if_then_statement)
+
+
+state 376
+
+  141 write_parameter_list_tail: _COMMA write_parameter . write_parameter_list_tail
+
+    _COMMA  shift, and go to state 339
+
+    $default  reduce using rule 140 (write_parameter_list_tail)
+
+    write_parameter_list_tail  go to state 394
+
+
+state 377
+
+   75 variable_list_tail: _COMMA variable variable_list_tail .
+
+    $default  reduce using rule 75 (variable_list_tail)
+
+
+state 378
+
+  221 function_declaration: function_heading label_declaration_part constant_definition_part type_definition_part variable_declaration_part procedure_declaration_list compound_statement .
+
+    $default  reduce using rule 221 (function_declaration)
+
+
+state 379
+
+   61 variant: constant_list . _COLON _LPAREN field_list _RPAREN
+   62        | constant_list .
+
+    _COLON  shift, and go to state 395
+
+    $default  reduce using rule 62 (variant)
+
+
+state 380
+
+   63 variant_list: variant . variant_list_tail
+
+    _SEMICOLON  shift, and go to state 396
+
+    $default  reduce using rule 64 (variant_list_tail)
+
+    variant_list_tail  go to state 397
+
+
+state 381
+
+   60 variant_part: _CASE id _COLON id _OF variant_list .
+
+    $default  reduce using rule 60 (variant_part)
+
+
+state 382
+
+  222 function_heading: _FUNCTION id _LPAREN formal_parameters _RPAREN _COLON id _SEMICOLON .
+
+    $default  reduce using rule 222 (function_heading)
+
+
+state 383
+
+   99 expr_list_tail: _COMMA expr expr_list_tail .
+
+    $default  reduce using rule 99 (expr_list_tail)
+
+
+state 384
+
+   28 constant_list_tail: _COMMA constant . constant_list_tail
+
+    _COMMA  shift, and go to state 360
+
+    $default  reduce using rule 27 (constant_list_tail)
+
+    constant_list_tail  go to state 398
+
+
+state 385
+
+  164 case_element: constant_list _COLON statement .
+
+    $default  reduce using rule 164 (case_element)
+
+
+state 386
+
+  167 case_element_list_tail: _SEMICOLON case_element . case_element_list_tail
+
+    _SEMICOLON  shift, and go to state 363
+
+    $default  reduce using rule 166 (case_element_list_tail)
+
+    case_element_list_tail  go to state 399
+
+
+state 387
+
+  176 safe_for_statement: _FOR id _ASSIGN expr direction expr . _DO safe_statement
+  177 unsafe_for_statement: _FOR id _ASSIGN expr direction expr . _DO unsafe_statement
+
+    _DO  shift, and go to state 400
+
+
+state 388
+
+  176 safe_for_statement: _FOR id _ASSIGN . expr direction expr _DO safe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 401
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 389
+
+  161 safe_if_then_else_statement: _IF expr _THEN . safe_statement _ELSE safe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 331
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 332
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 333
+    _WITH        shift, and go to state 334
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer             go to state 335
+    id                           go to state 137
+    variable                     go to state 138
+    entire_variable              go to state 139
+    component_variable           go to state 140
+    indexed_variable             go to state 141
+    field_designator             go to state 142
+    referenced_variable          go to state 143
+    safe_statement               go to state 402
+    labeled_safe_statement       go to state 148
+    unlabeled_safe_statement     go to state 150
+    simple_statement             go to state 152
+    assignment_statement         go to state 153
+    output_statement             go to state 154
+    procedure_call               go to state 155
+    goto_statement               go to state 156
+    empty_statement              go to state 157
+    safe_structured_statement    go to state 158
+    compound_statement           go to state 160
+    safe_conditional_statement   go to state 161
+    safe_if_then_else_statement  go to state 164
+    case_statement               go to state 166
+    safe_repetitive_statement    go to state 167
+    safe_while_statement         go to state 169
+    repeat_statement             go to state 171
+    safe_for_statement           go to state 172
+    safe_with_statement          go to state 174
+
+
+state 390
+
+  173 safe_while_statement: _WHILE expr _DO . safe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 331
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 332
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 333
+    _WITH        shift, and go to state 334
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer             go to state 335
+    id                           go to state 137
+    variable                     go to state 138
+    entire_variable              go to state 139
+    component_variable           go to state 140
+    indexed_variable             go to state 141
+    field_designator             go to state 142
+    referenced_variable          go to state 143
+    safe_statement               go to state 343
+    labeled_safe_statement       go to state 148
+    unlabeled_safe_statement     go to state 150
+    simple_statement             go to state 152
+    assignment_statement         go to state 153
+    output_statement             go to state 154
+    procedure_call               go to state 155
+    goto_statement               go to state 156
+    empty_statement              go to state 157
+    safe_structured_statement    go to state 158
+    compound_statement           go to state 160
+    safe_conditional_statement   go to state 161
+    safe_if_then_else_statement  go to state 164
+    case_statement               go to state 166
+    safe_repetitive_statement    go to state 167
+    safe_while_statement         go to state 169
+    repeat_statement             go to state 171
+    safe_for_statement           go to state 172
+    safe_with_statement          go to state 174
+
+
+state 391
+
+  180 safe_with_statement: _WITH variable_list _DO . safe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 331
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 332
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 333
+    _WITH        shift, and go to state 334
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer             go to state 335
+    id                           go to state 137
+    variable                     go to state 138
+    entire_variable              go to state 139
+    component_variable           go to state 140
+    indexed_variable             go to state 141
+    field_designator             go to state 142
+    referenced_variable          go to state 143
+    safe_statement               go to state 346
+    labeled_safe_statement       go to state 148
+    unlabeled_safe_statement     go to state 150
+    simple_statement             go to state 152
+    assignment_statement         go to state 153
+    output_statement             go to state 154
+    procedure_call               go to state 155
+    goto_statement               go to state 156
+    empty_statement              go to state 157
+    safe_structured_statement    go to state 158
+    compound_statement           go to state 160
+    safe_conditional_statement   go to state 161
+    safe_if_then_else_statement  go to state 164
+    case_statement               go to state 166
+    safe_repetitive_statement    go to state 167
+    safe_while_statement         go to state 169
+    repeat_statement             go to state 171
+    safe_for_statement           go to state 172
+    safe_with_statement          go to state 174
+
+
+state 392
+
+  161 safe_if_then_else_statement: _IF expr _THEN safe_statement _ELSE safe_statement .
+
+    $default  reduce using rule 161 (safe_if_then_else_statement)
+
+
+state 393
+
+  162 unsafe_if_then_else_statement: _IF expr _THEN safe_statement _ELSE unsafe_statement .
+
+    $default  reduce using rule 162 (unsafe_if_then_else_statement)
+
+
+state 394
+
+  141 write_parameter_list_tail: _COMMA write_parameter write_parameter_list_tail .
+
+    $default  reduce using rule 141 (write_parameter_list_tail)
+
+
+state 395
+
+   61 variant: constant_list _COLON . _LPAREN field_list _RPAREN
+
+    _LPAREN  shift, and go to state 403
+
+
+state 396
+
+   65 variant_list_tail: _SEMICOLON . variant variant_list_tail
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _DASH        shift, and go to state 44
+    _PLUS        shift, and go to state 45
+
+    unsigned_integer   go to state 46
+    unsigned_real      go to state 47
+    unsigned_number    go to state 48
+    sign               go to state 49
+    string             go to state 50
+    id                 go to state 51
+    signed_number      go to state 52
+    signed_identifier  go to state 53
+    constant           go to state 326
+    constant_list      go to state 379
+    variant            go to state 404
+
+
+state 397
+
+   63 variant_list: variant variant_list_tail .
+
+    $default  reduce using rule 63 (variant_list)
+
+
+state 398
+
+   28 constant_list_tail: _COMMA constant constant_list_tail .
+
+    $default  reduce using rule 28 (constant_list_tail)
+
+
+state 399
+
+  167 case_element_list_tail: _SEMICOLON case_element case_element_list_tail .
+
+    $default  reduce using rule 167 (case_element_list_tail)
+
+
+state 400
+
+  176 safe_for_statement: _FOR id _ASSIGN expr direction expr _DO . safe_statement
+  177 unsafe_for_statement: _FOR id _ASSIGN expr direction expr _DO . unsafe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 128
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 130
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 134
+    _WITH        shift, and go to state 135
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer               go to state 136
+    id                             go to state 137
+    variable                       go to state 138
+    entire_variable                go to state 139
+    component_variable             go to state 140
+    indexed_variable               go to state 141
+    field_designator               go to state 142
+    referenced_variable            go to state 143
+    safe_statement                 go to state 405
+    unsafe_statement               go to state 406
+    labeled_safe_statement         go to state 148
+    labeled_unsafe_statement       go to state 149
+    unlabeled_safe_statement       go to state 150
+    unlabeled_unsafe_statement     go to state 151
+    simple_statement               go to state 152
+    assignment_statement           go to state 153
+    output_statement               go to state 154
+    procedure_call                 go to state 155
+    goto_statement                 go to state 156
+    empty_statement                go to state 157
+    safe_structured_statement      go to state 158
+    unsafe_structured_statement    go to state 159
+    compound_statement             go to state 160
+    safe_conditional_statement     go to state 161
+    unsafe_conditional_statement   go to state 162
+    if_then_statement              go to state 163
+    safe_if_then_else_statement    go to state 164
+    unsafe_if_then_else_statement  go to state 165
+    case_statement                 go to state 166
+    safe_repetitive_statement      go to state 167
+    unsafe_repetitive_statement    go to state 168
+    safe_while_statement           go to state 169
+    unsafe_while_statement         go to state 170
+    repeat_statement               go to state 171
+    safe_for_statement             go to state 172
+    unsafe_for_statement           go to state 173
+    safe_with_statement            go to state 174
+    unsafe_with_statement          go to state 175
+
+
+state 401
+
+  176 safe_for_statement: _FOR id _ASSIGN expr . direction expr _DO safe_statement
+
+    _DOWNTO  shift, and go to state 366
+    _TO      shift, and go to state 367
+
+    direction  go to state 407
+
+
+state 402
+
+  161 safe_if_then_else_statement: _IF expr _THEN safe_statement . _ELSE safe_statement
+
+    _ELSE  shift, and go to state 408
+
+
+state 403
+
+   61 variant: constant_list _COLON _LPAREN . field_list _RPAREN
+
+    _IDENTIFIER  shift, and go to state 7
+    _CASE        shift, and go to state 110
+
+    id                 go to state 18
+    idlist             go to state 111
+    field_list         go to state 409
+    field_list_kernel  go to state 113
+    record_section     go to state 114
+    variant_part       go to state 115
+
+
+state 404
+
+   65 variant_list_tail: _SEMICOLON variant . variant_list_tail
+
+    _SEMICOLON  shift, and go to state 396
+
+    $default  reduce using rule 64 (variant_list_tail)
+
+    variant_list_tail  go to state 410
+
+
+state 405
+
+  176 safe_for_statement: _FOR id _ASSIGN expr direction expr _DO safe_statement .
+
+    $default  reduce using rule 176 (safe_for_statement)
+
+
+state 406
+
+  177 unsafe_for_statement: _FOR id _ASSIGN expr direction expr _DO unsafe_statement .
+
+    $default  reduce using rule 177 (unsafe_for_statement)
+
+
+state 407
+
+  176 safe_for_statement: _FOR id _ASSIGN expr direction . expr _DO safe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _REAL        shift, and go to state 42
+    _STRING      shift, and go to state 43
+    _FALSE       shift, and go to state 207
+    _NIL         shift, and go to state 208
+    _TRUE        shift, and go to state 209
+    _LPAREN      shift, and go to state 210
+    _LBRACKET    shift, and go to state 211
+    _NOT         shift, and go to state 212
+    _DASH        shift, and go to state 213
+    _OR          shift, and go to state 214
+    _PLUS        shift, and go to state 215
+
+    unsigned_integer     go to state 46
+    unsigned_real        go to state 47
+    unsigned_number      go to state 216
+    string               go to state 217
+    id                   go to state 218
+    unsigned_constant    go to state 219
+    variable             go to state 220
+    entire_variable      go to state 139
+    component_variable   go to state 140
+    indexed_variable     go to state 141
+    field_designator     go to state 142
+    referenced_variable  go to state 143
+    factor               go to state 221
+    set                  go to state 222
+    term                 go to state 223
+    simple               go to state 224
+    expr                 go to state 411
+    addop                go to state 226
+    function_call        go to state 227
+
+
+state 408
+
+  161 safe_if_then_else_statement: _IF expr _THEN safe_statement _ELSE . safe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 331
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 332
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 333
+    _WITH        shift, and go to state 334
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer             go to state 335
+    id                           go to state 137
+    variable                     go to state 138
+    entire_variable              go to state 139
+    component_variable           go to state 140
+    indexed_variable             go to state 141
+    field_designator             go to state 142
+    referenced_variable          go to state 143
+    safe_statement               go to state 392
+    labeled_safe_statement       go to state 148
+    unlabeled_safe_statement     go to state 150
+    simple_statement             go to state 152
+    assignment_statement         go to state 153
+    output_statement             go to state 154
+    procedure_call               go to state 155
+    goto_statement               go to state 156
+    empty_statement              go to state 157
+    safe_structured_statement    go to state 158
+    compound_statement           go to state 160
+    safe_conditional_statement   go to state 161
+    safe_if_then_else_statement  go to state 164
+    case_statement               go to state 166
+    safe_repetitive_statement    go to state 167
+    safe_while_statement         go to state 169
+    repeat_statement             go to state 171
+    safe_for_statement           go to state 172
+    safe_with_statement          go to state 174
+
+
+state 409
+
+   61 variant: constant_list _COLON _LPAREN field_list . _RPAREN
+
+    _RPAREN  shift, and go to state 412
+
+
+state 410
+
+   65 variant_list_tail: _SEMICOLON variant variant_list_tail .
+
+    $default  reduce using rule 65 (variant_list_tail)
+
+
+state 411
+
+  176 safe_for_statement: _FOR id _ASSIGN expr direction expr . _DO safe_statement
+
+    _DO  shift, and go to state 413
+
+
+state 412
+
+   61 variant: constant_list _COLON _LPAREN field_list _RPAREN .
+
+    $default  reduce using rule 61 (variant)
+
+
+state 413
+
+  176 safe_for_statement: _FOR id _ASSIGN expr direction expr _DO . safe_statement
+
+    _IDENTIFIER  shift, and go to state 7
+    _INTEGER     shift, and go to state 13
+    _BEGIN       shift, and go to state 102
+    _CASE        shift, and go to state 127
+    _FOR         shift, and go to state 331
+    _GOTO        shift, and go to state 129
+    _IF          shift, and go to state 332
+    _WRITE       shift, and go to state 131
+    _WRITELN     shift, and go to state 132
+    _REPEAT      shift, and go to state 133
+    _WHILE       shift, and go to state 333
+    _WITH        shift, and go to state 334
+
+    $default  reduce using rule 146 (empty_statement)
+
+    unsigned_integer             go to state 335
+    id                           go to state 137
+    variable                     go to state 138
+    entire_variable              go to state 139
+    component_variable           go to state 140
+    indexed_variable             go to state 141
+    field_designator             go to state 142
+    referenced_variable          go to state 143
+    safe_statement               go to state 405
+    labeled_safe_statement       go to state 148
+    unlabeled_safe_statement     go to state 150
+    simple_statement             go to state 152
+    assignment_statement         go to state 153
+    output_statement             go to state 154
+    procedure_call               go to state 155
+    goto_statement               go to state 156
+    empty_statement              go to state 157
+    safe_structured_statement    go to state 158
+    compound_statement           go to state 160
+    safe_conditional_statement   go to state 161
+    safe_if_then_else_statement  go to state 164
+    case_statement               go to state 166
+    safe_repetitive_statement    go to state 167
+    safe_while_statement         go to state 169
+    repeat_statement             go to state 171
+    safe_for_statement           go to state 172
+    safe_with_statement          go to state 174
